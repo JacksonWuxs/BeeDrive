@@ -4,8 +4,12 @@ from hashlib import md5
 from .constant import IV, BLOCK_SIZE
 
 try:
-    from Crypto.Cipher import AES
-    from Crypto.Util.Padding import pad, unpad
+    try:
+        from Crypto.Cipher import AES
+        from Crypto.Util.Padding import pad, unpad
+    except ImportError:
+        from crypto.Cipher import AES
+        from crypto.Util.Padding import pad, unpad
     USE_CRYPTO = True
 except ImportError:
     USE_CRYPTO = False
