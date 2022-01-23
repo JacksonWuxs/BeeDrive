@@ -99,7 +99,7 @@ def download_gui():
               [sg.Text("Cloud:", **GUI_CONFIG), sg.InputText(cloud, size=(40, 1))],
               [sg.Text("Proxy:", **GUI_CONFIG), sg.InputText(proxy, size=(40, 1))],
               [sg.Text("Target:", **GUI_CONFIG), sg.InputText("", size=(40, 1))],
-              [sg.Text("Save To:", **GUI_CONFIG), sg.InputText(rspn.get("root", ""), size=(33, 1), key="path"),
+              [sg.Text("Save To:", **GUI_CONFIG), sg.InputText(config.get("root", ""), size=(33, 1), key="path"),
                sg.FolderBrowse("Fold", size=(4, 1), target="path", button_color="brown")],
               [sg.Text("Progress:", **GUI_CONFIG),
                sg.Text("", size=(24, 1), key="status", justification='left', text_color="black", background_color="white"),
