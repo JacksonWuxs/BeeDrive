@@ -39,7 +39,7 @@ def upload_gui():
     import PySimpleGUI as sg
     config = load_config("upload")
     proxy = ";".join(_[0] + ":" + str(_[1]) for _ in config.get("proxy", []))
-    cloud = "%s:%d" % config["cloud"]
+    cloud = "%s:%d" % config["cloud"] if "cloud" in config else ""
     layout = [[sg.Text("Name:", **GUI_CONFIG), sg.InputText(config.get("user", ""), size=(40, 1))],
               [sg.Text("Passwd:", **GUI_CONFIG), sg.InputText(config.get("passwd", ""), password_char="*", size=(40, 1))],
               [sg.Text("Cloud:", **GUI_CONFIG), sg.InputText(cloud, size=(40, 1))],
@@ -75,10 +75,11 @@ def upload_gui():
             msg = manager.read()
             if not isinstance(msg, (str, bytes)):
                 continue
+            msg = msg.strip()
             if msg.startswith("Upload:"):
                 l, m, r = msg.split(" | ")[-3:]
                 msg = " | ".join([l.split(" ")[-1], m, r])
-            window["status"].update(msg + " " * (80 - len(msg)))
+            window["status"].update(msg)
             if msg in (STAGE_FAIL, STAGE_DONE):
                 break
             evt, _ = window.read(timeout=0.0001)
@@ -92,7 +93,7 @@ def download_gui():
     import PySimpleGUI as sg
     config = load_config("download")
     proxy = ";".join(_[0] + ":" + str(_[1]) for _ in config.get("proxy", []))
-    cloud = "%s:%d" % config["cloud"]
+    cloud = "%s:%d" % config["cloud"] if "cloud" in config else ""
     layout = [[sg.Text("Name:", **GUI_CONFIG), sg.InputText(config.get("user", ""), size=(40, 1))],
               [sg.Text("Passwd:", **GUI_CONFIG), sg.InputText(config.get("passwd", ""), password_char="*", size=(40, 1))],
               [sg.Text("Cloud:", **GUI_CONFIG), sg.InputText(cloud, size=(40, 1))],
@@ -130,10 +131,11 @@ def download_gui():
             msg = manager.read()
             if not isinstance(msg, (str, bytes)):
                 continue
+            msg = msg.strip()
             if msg.startswith("Download:"):
                 l, m, r = msg.split(" | ")[-3:]
                 msg = " | ".join([l.split(" ")[-1], m, r])
-            window["status"].update(msg + " " * (80 - len(msg)))
+            window["status"].update(msg)
             if msg in (STAGE_FAIL, STAGE_DONE):
                 break
             evt, _ = window.read(timeout=0.0001)

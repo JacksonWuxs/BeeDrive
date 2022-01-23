@@ -27,7 +27,7 @@ class BaseClient(BaseWorker):
 
     def build_connect(self):
         # connect the server
-        for ip, port in self.proxy + [self.target]:
+        for ip, port in [self.target] + self.proxy:
             # try to connect target
             self.socket = build_connect(ip, port)
             if isinstance(self.socket, str):
