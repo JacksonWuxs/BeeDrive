@@ -96,7 +96,7 @@ Maybe you are more interested in running with a Window.
 > BeeDrive cloud -mode app
 ```
 
-![Cloud APP](https://github.com/JacksonWuxs/BeeDrive/blob/gh-pages/figures/setup%20cloud.png)
+![Cloud APP](https://github.com/JacksonWuxs/BeeDrive/blob/gh-pages/figures/setup%20cloud%20win.png)
 
 * Upload File/Folder
 
