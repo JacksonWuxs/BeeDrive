@@ -1,17 +1,21 @@
 
 # BeeDrive
 
-Open Source Privacy File Transfering System for Teams and Individual Developers.
+For privacy and convenience purposes, more and more people try to keep data on their own hardwires instead of third-party cloud services such as Google Drive, OneDrive, and Baidu Drive. While large companies have enough resources to develop their cloud storage services, individual developers and startups are not capable of building a new cloud storage system. 
+
+BeeDrive is an open-source file storage and transfer system that you can quickly deploy on your computing station, online cloud servers, and laptops. We provide a new TCP-based protocol to make sure your data safety. The significance between BeeDrive with other TCP-based protocols (e.g., HTTP and FTP) is encrypting data with users' passwords. Moreover, BeeDrive has a built-in NAT service so that you can access your workstation without a stable IP using your laptop. 
 
 ## Features
 
-- __Security__
+- __Security &Privacy__
 
-  In contrast with protocols like HTTP and FTP, BeeDrive keeps your data safe during each time of data transfer. We sign data and encrypt them based on your own password.
+  In contrast with protocols like HTTP and FTP, BeeDrive keeps your data safe during each time of data transfer based on your password. It means that even if attackers obtain open-source BeeDrive code like you, they can't crack your encrypted data. Specifically, before transferring each piece of your data, BeeDrive first signs your data and password with the MD5 algorithm then applies the AES algorithm to encrypt it with your password as a private key.
 
-- __Efficiency__
+- __Efficiency & Scalable__
 
-  We didn't sacrifice performance for safety. BeeDrive can transfer individual files at a rate of 50MB/s with encryption, while it can even reach over 100MB/s without encryption. This performance is sufficient for typical file transfer scenarios, such as file exchange within the same data center (w/o encryption) or unsafety World Wide Web transfers (w/ encryption).
+  We didn't sacrifice performance for safety. BeeDrive can transfer individual files at a rate of 50MB/s with encryption, while it can even reach over 100MB/s without encryption. This performance is sufficient for typical file transfer scenarios, such as file exchange within the same data center (w/o encryption) and unsafety World Wide Web transfers (w/ encryption). 
+
+  BeeDrive cloud drive service relies on a multi-processing and multi-threading architecture to support concurrency scenarios. It will automatically launch and destroy new managers (Process-based) and workers (Thread-based) regarding the number of queries. Single Intel i7 CPU (workstation-version) can support ~100 downloading/uploading tasks simultaneously!
 
 - __Free Network Address Translation (NAT)__
 
