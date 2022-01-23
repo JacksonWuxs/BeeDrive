@@ -52,7 +52,7 @@ The GUI interface will show if you are on a Mac/Windows platform.
 > BeeDrive-gui
 ```
 
-![Welcom BeeDrive in GUI](https://github.com/JacksonWuxs/BeeDrive/blob/gh-pages/figures/Welcome%20window.png)
+![Welcom BeeDrive in GUI](https://github.com/JacksonWuxs/BeeDrive/blob/gh-pages/figures/Welcome%20window.png?raw=true)
 
 If you can't run above codes, try the followings instead.
 
@@ -96,7 +96,7 @@ Maybe you are more interested in running with a Window.
 > BeeDrive cloud -mode app
 ```
 
-![Cloud APP](https://github.com/JacksonWuxs/BeeDrive/blob/gh-pages/figures/setup%20cloud%20win.png)
+![Cloud APP](https://github.com/JacksonWuxs/BeeDrive/blob/gh-pages/figures/setup%20cloud%20win.png?raw=true)
 
 * Upload File/Folder
 
@@ -120,7 +120,7 @@ Of course, we have GUI for this service again.
 ```bash
 > BeeDrive upload -mode app
 ```
-![Upload APP](https://github.com/JacksonWuxs/BeeDrive/blob/gh-pages/figures/upload%20win.png)
+![Upload APP](https://github.com/JacksonWuxs/BeeDrive/blob/gh-pages/figures/upload%20win.png?raw=true)
 
 * Download File
 
