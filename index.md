@@ -5,10 +5,21 @@ Open Source Privacy File Transfering System for Teams and Individual Developers.
 
 ## Features
 
-- __Security__: In contrast with protocols like HTTP and FTP, BeeDrive keeps your data safe during each time of data transfer. We sign data and encrypt them based on your own password.
-- __Efficiency__: We didn't sacrifice performance for safety. BeeDrive can transfer individual files at a rate of 50MB/s with encryption, while it can even reach over 100MB/s without encryption. This performance is sufficient for typical file transfer scenarios, such as file exchange within the same data center (w/o encryption) or unsafety World Wide Web transfers (w/ encryption).
-- __Free Network Address Translation (NAT)__: Most individual developers and startups need to access their personal computers via their laptops. Although LAN Port Forwarding is a common choice, users take risks to be attacked. BeeDrive provides several public forwarding proxies world wild to help you access your data far away from your home. Once you have your cloud service, you can even deploy your own NAT service!
-- __User Friendly API Designs__: We keep BeeDrive as simple as we can. Firstly, you can obtain BeeDrive in flexible ways, such as PyPi, Source Code, and Executable Files (.exe). More than that, we have automatic strategies to help you manage configurations. To help you follow task progresses, we have rich information on console, and a simplify GUI window! No matter you are an expert or a freshman, you can always find a way that suits your style.
+- __Security__
+
+  In contrast with protocols like HTTP and FTP, BeeDrive keeps your data safe during each time of data transfer. We sign data and encrypt them based on your own password.
+
+- __Efficiency__
+
+  We didn't sacrifice performance for safety. BeeDrive can transfer individual files at a rate of 50MB/s with encryption, while it can even reach over 100MB/s without encryption. This performance is sufficient for typical file transfer scenarios, such as file exchange within the same data center (w/o encryption) or unsafety World Wide Web transfers (w/ encryption).
+
+- __Free Network Address Translation (NAT)__
+
+  Most individual developers and startups need to access their personal computers via their laptops. Although LAN Port Forwarding is a common choice, users take risks to be attacked. BeeDrive provides several public forwarding proxies world wild to help you access your data far away from your home. Once you have your cloud service, you can even deploy your own NAT service!
+
+- __User Friendly API Designs__
+
+  We keep BeeDrive as simple as we can. Firstly, you can obtain BeeDrive in flexible ways, such as PyPi, Source Code, and Executable Files (.exe). More than that, we have automatic strategies to help you manage configurations. To help you follow task progresses, we have rich information on console, and a simplify GUI window! No matter you are an expert or a freshman, you can always find a way that suits your style.
 
 ## Installation
 
