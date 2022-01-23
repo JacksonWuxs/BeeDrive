@@ -52,7 +52,10 @@ The GUI interface will show if you are on a Mac/Windows platform.
 > BeeDrive-gui
 ```
 
+![Welcom BeeDrive in GUI](https://github.com/JacksonWuxs/BeeDrive/blob/gh-pages/figures/Welcome%20window.png)
+
 If you can't run above codes, try the followings instead.
+
 ```bash
 > python -m BeeDrive -h
 > python -m BeeDrive-gui
@@ -60,9 +63,11 @@ If you can't run above codes, try the followings instead.
 BeeDrive relies on two optional dependencies. `PySimpleGUI` is used to support GUI interface. `pycryptodome` is used for encrypting. They are not necessary if you don't need on these two purposes.
 ## Examples
 * Personal Drive Service
-You ONLY need to setup at the first time running `BeeDrive cloud`, it will remember your setting in the future. 
 
-In this case, we not only launch a local personal drive, but also regist it on our public forwarding servers. `34.94.43.17:8889` is running at US, while `8.130.53.35:8889` is working in China. After we have a name on proxies, our drive can be accessed with this nick name instead of IP address.
+  You ONLY need to setup at the first time running `BeeDrive cloud`, it will remember your setting in the future. 
+
+  In this case, we not only launch a local personal drive, but also regist it on our public forwarding servers. `34.94.43.17:8889` is running at US, while `8.130.53.35:8889` is working in China. After we have a name on proxies, our drive can be accessed with this nick name instead of IP address.
+
 ```bash
 > BeeDrive cloud 
 Setting configurations
@@ -91,9 +96,10 @@ Maybe you are more interested in running with a Window.
 > BeeDrive cloud -mode app
 ```
 
-[Cloud APP]()
+![Cloud APP](https://github.com/JacksonWuxs/BeeDrive/blob/gh-pages/figures/setup%20cloud.png)
 
 * Upload File/Folder
+
   Here is the example to help you upload `myfile.txt` to the cloud drive we just setup. Again, you will have to fill out these settings at the first time ONLY.
 
 ```bash
@@ -114,8 +120,12 @@ Of course, we have GUI for this service again.
 ```bash
 > BeeDrive upload -mode app
 ```
+![Upload APP](https://github.com/JacksonWuxs/BeeDrive/blob/gh-pages/figures/upload%20win.png)
+
 * Download File
-Downloading is similar to uploading. The only different is we need to assign an address to save file.
+
+  Downloading is similar to uploading. The only different is we need to assign an address to save file.
+
 ```bash
 > mkdir temp_download 
 > BeeDrive download myfile.txt temp_download
@@ -137,7 +147,8 @@ Here is the code to help you run this service with a GUI.
 ```
 
 * Forwarding Proxy (Free NAT)
-Forwarding proxy doesn't support GUI because we think it should work on servers only. This service only relies on one single argument! That is the port you need.
+
+  Forwarding proxy doesn't support GUI because we think it should work on servers only. This service only relies on one single argument! That is the port you need.
 ```bash
 > BeeDrive proxy 8889
 [Sun Jan 23 03:49:58 2022] INFO: Public Host Proxy is launched at port 8889
