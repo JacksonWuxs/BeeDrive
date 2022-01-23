@@ -116,16 +116,17 @@ def cmd_get_config(reset_config, custom_config):
     config["users"] = parse_users(input("1. Authorized users and passwords [user:passwd;user:passwd;...]:"))
     config["sport"] = int(input("2. One port to launch the Server [1-65555]:"))
     config["spath"] = input("3. A path to save file on your computer: ")
-    config["times"] = float(input("4. How many minutes your want to keep the cloud alive? [1-30000]: ")) * 60
-    config["sign"] = input("5. Sign your data during transfering (maybe slow down transfering)? [y|n] ").lower() == "y"
-    config["crypt"] = input("6. Encrypto your data during transfering (maybe slow down transfering)? [y|n] ").lower() == "y"
-    config["manager"] = max(int(input("7. How many CPUs the service can use at most? ")), 1)
-    config["worker"] = max(int(input("8. How many tasks can each CPU accept at most? ")), 1)
+    config["times"] = float(input("4. How many minutes your want to keep the cloud alive? ")) * 60
+    config["manager"] = max(int(input("5. How many CPUs the service can use at most? ")), 1)
+    config["worker"] = max(int(input("6. How many tasks can each CPU accept at most? ")), 1)
+    config["sign"] = True
+    config["crypt"] = True
+    
     if input("\n[2] Free NAT Service [y|n]: ").lower() == "y":
-        config["proxy"] = input("9. Accessible Forwarding servers [ip:port;ip;port;...]: ")
+        config["proxy"] = input("7. Accessible Forwarding servers [ip:port;ip;port;...]: ")
         config["proxy"] = [(addr.split(":")[0], int(addr.split(":")[1])) for addr in config["proxy"].split(";")]
-        config["pname"] = input("10. A public name on the Forwarding server [anything]: ")
-        config["rport"] = int(input("11. One port to launch the local Proxy server [1-65555]: "))
+        config["pname"] = input("8. A nickname on the Forwarding server: ")
+        config["rport"] = int(input("9. One port to launch the local Proxy server: "))
     else:
         config["proxy"] = config["pname"] = config["rport"] = ""
     return save_config("cloud", **config)
