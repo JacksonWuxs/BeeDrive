@@ -72,7 +72,7 @@ class BaseManager(multiprocessing.Process):
             if not isinstance(parameters, dict):
                 continue
             cmd = parameters.pop("cmd")
-            
+            self.update_worker_status()
             if cmd == IsFull:
                 self.send(self.pool_is_full())
                 

@@ -5,8 +5,8 @@ sys.path.append("..")
 
 import PySimpleGUI as sg
 
-from beedrive import client,cloud
-from beedrive.core.utils import resource_path
+from BeeDrive import client,cloud
+from BeeDrive.core.utils import resource_path
 
     
 def welcome_page():
@@ -22,7 +22,7 @@ def welcome_page():
     return choice
 
 
-if __name__ == "__main__":
+def main():
     multiprocessing.freeze_support()
     while True:
         choice = welcome_page()
@@ -37,3 +37,7 @@ if __name__ == "__main__":
 
         else:
             break
+
+
+if __name__ == "__main__":
+    main()

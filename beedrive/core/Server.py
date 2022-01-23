@@ -1,8 +1,7 @@
 from os import path, makedirs
 from time import sleep, time
 from json import loads, dumps
-
-#from DaPy import Table
+from multiprocessing import cpu_count
 
 from .base import BaseServer, BaseClient, BaseManager
 from .constant import IsFull, NewTask, KillTask, Update, Stop, ALIVE
@@ -39,11 +38,12 @@ class WorkerManager(BaseManager):
 
 
 class LocalServer(BaseServer):
-    def __init__(self, users, port, save_path, crypto, sign, proxy=None):
+    def __init__(self, users, port, save_path, 
+                 crypto, sign, max_manager, max_worker):
         BaseServer.__init__(self, users, port, crypto, sign)
         self.target = ("0.0.0.0", port)
-        self.max_manager = 8
-        self.max_worker = 4
+        self.max_manager = max_manager
+        self.max_worker = max_worker
         self.managers = set()
         self.workdir = path.abspath(save_path)
 
@@ -96,8 +96,6 @@ class LocalServer(BaseServer):
         for manager in self.managers:
             for uuid, state, stage, percent, msg in manager.echo(Update):
                 pass
-                #self.schedule.update(lambda row: row[0] == uuid, status=state, stage=stage, percent=percent, message=msg)
-        
 
                         
 if __name__ == '__main__':

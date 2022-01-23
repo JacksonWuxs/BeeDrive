@@ -61,7 +61,6 @@ class UploadClient(BaseClient):
                     self.percent = bkpnt / fsize if fsize > 0 else 1.0
                     self.msg = callback_processbar(self.percent, task, fsize/spent_time, spent_time)
                 callback_flush()
-                self.msg = "Checking file information"
                 self.msg = self.stage = self.recv().decode()
             except Exception:
                 callback_error(format_exc(), 0)
@@ -100,9 +99,10 @@ class UploadWaiter(BaseWaiter):
                 current_code = file_md5(fpath, current_size) if path.exists(fpath) else ""
                 self.send(dumps({"size": current_size, "code": current_code}))
                 bkpnt = int(self.recv())
+                
                 mode = 'wb' if bkpnt == 0 else 'ab+'     
                 self.stage = STAGE_RUN
-                self.percent = bkpnt / fsize
+                self.percent = bkpnt / fsize if fsize > 0 else 1.0
 
                 # Now begin to recive file
                 begin_time = last_time = time()
@@ -121,10 +121,11 @@ class UploadWaiter(BaseWaiter):
                             update_time = 0.1
                             spent = max(0.001, time() - begin_time)
                             self.msg = callback_processbar(self.percent, fname, bkpnt/spent, spent)
-                
+
                 bkpnt = path.getsize(fpath)
                 spent = max(0.001, time() - begin_time)
-                self.msg = callback_processbar(bkpnt/fsize, task, bkpnt/spent, spent)
+                progress = bkpnt/fsize if fsize > 0 else 1.0
+                self.msg = callback_processbar(progress, task, bkpnt/spent, spent)
                 self.stage = STAGE_DONE if file_md5(fpath, bkpnt) == fcode else STAGE_FAIL
                 self.send(self.stage)
             except JSONDecodeError:
@@ -134,4 +135,3 @@ class UploadWaiter(BaseWaiter):
             except Exception:
                 self.msg = self.stage = STAGE_FAIL
         sleep(0.1)
-        self.stop()

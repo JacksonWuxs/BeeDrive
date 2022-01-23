@@ -146,9 +146,9 @@ class LocalRelay(BaseProxyNode):
             if route.recv(128) == b"TRUE":
                 self.routes[self.master] = route
                 callback_info("Registed at Proxy %s:%d with nickname %s:%d" % (route.getpeername()[0],
-                                                                                route.getpeername()[1],
-                                                                                self.nickname[0],
-                                                                                self.nickname[1]))
+                                                                               route.getpeername()[1],
+                                                                               self.nickname[0],
+                                                                               self.nickname[1]))
 
     def run(self):
         with self:
@@ -162,7 +162,8 @@ class LocalRelay(BaseProxyNode):
                             self.remove_connect(sock)
                     self.build_server()
                     sockets = self.listen_sock
-                    
+                if not self.alive:
+                    break
                 for sock in select(sockets, [], [])[0]:
                     self.handle_one_request(sock)
                     

@@ -19,7 +19,7 @@ def init_config_path(service=None):
 def save_config(service, **config):
     path = init_config_path(service)
     pickle.dump(config, open(path, mode="wb"))
-    callback_info("Configuration for BeeDrive %s service has been updated at %s" % (service, path))
+    callback_info("Update BeeDrive-%s default config at %s" % (service, path))
     return config
 
 

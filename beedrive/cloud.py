@@ -3,6 +3,8 @@ import sys
 import pickle
 import time
 
+from multiprocessing import cpu_count
+
 from .core.Server import LocalServer
 from .core.Proxy import LocalRelay
 from .core.utils import analysis_ip, resource_path
@@ -27,7 +29,8 @@ class ConfigLauncher:
         self.hosts = [LocalRelay(proxy, config["rport"], config["sport"], config["pname"]) \
                            for proxy in config["proxy"]]
         self.server = LocalServer(users=config["users"], port=config["sport"],
-                                  save_path=config["spath"], crypto=config["crypt"], sign=config["sign"])
+                                  save_path=config["spath"], crypto=config["crypt"], sign=config["sign"],
+                                  max_manager=config["manager"], max_worker=config["worker"])
 
     def start(self):
         self.server.start()
@@ -35,9 +38,9 @@ class ConfigLauncher:
             each.start()
 
     def stop(self):
-        self.server.stop()
         for each in self.hosts:
             each.stop()
+        self.server.stop()
 
     def wait(self):
         try:
@@ -81,6 +84,8 @@ def cloud_gui():
                                                 sign=True,
                                                 crypt=True,
                                                 proxy=analysis_ip(rspn[2]),
+                                                manager=max(cpu_count() - 1, 1),
+                                                worker=4,
                                                 pname=rspn[4],
                                                 rport=rspn[3]))
             window["status"].update("Running")
@@ -112,14 +117,15 @@ def cmd_get_config(reset_config, custom_config):
     config["sport"] = int(input("2. One port to launch the Server [1-65555]:"))
     config["spath"] = input("3. A path to save file on your computer: ")
     config["times"] = float(input("4. How many minutes your want to keep the cloud alive? [1-30000]: ")) * 60
-    config["sign"] = input("5. Sign your data during transfering (maybe slow down transfering)? [y|n]").lower() == "y"
-    config["crypt"] = input("6. Encrypto your data during transfering (maybe slow down transfering)? [y|n]").lower() == "y"
-
+    config["sign"] = input("5. Sign your data during transfering (maybe slow down transfering)? [y|n] ").lower() == "y"
+    config["crypt"] = input("6. Encrypto your data during transfering (maybe slow down transfering)? [y|n] ").lower() == "y"
+    config["manager"] = max(int(input("7. How many CPUs the service can use at most? ")), 1)
+    config["worker"] = max(int(input("8. How many tasks can each CPU accept at most? ")), 1)
     if input("\n[2] Free NAT Service [y|n]: ").lower() == "y":
-        config["proxy"] = input("7. Accessible Forwarding servers [ip:port;ip;port;...]: ")
+        config["proxy"] = input("9. Accessible Forwarding servers [ip:port;ip;port;...]: ")
         config["proxy"] = [(addr.split(":")[0], int(addr.split(":")[1])) for addr in config["proxy"].split(";")]
-        config["pname"] = input("8. A public name on the Forwarding server [anything]: ")
-        config["rport"] = int(input("9. One port to launch the local Proxy server [1-65555]: "))
+        config["pname"] = input("10. A public name on the Forwarding server [anything]: ")
+        config["rport"] = int(input("11. One port to launch the local Proxy server [1-65555]: "))
     else:
         config["proxy"] = config["pname"] = config["rport"] = ""
     return save_config("cloud", **config)

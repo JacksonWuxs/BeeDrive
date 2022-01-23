@@ -9,8 +9,8 @@ try:
     USE_CRYPTO = True
 except ImportError:
     USE_CRYPTO = False
-    from warnings import warn
-    warn("Crypto is not available, PFTA cannot encode your data")
+    import warnings
+    warnings.warn("Crypto is not available, we cannot your data privacy!")
 
 
 __all__ = ['file_md5', 'AESCoder', 'MD5Coder']

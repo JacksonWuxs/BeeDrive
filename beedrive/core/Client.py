@@ -51,7 +51,7 @@ class ClientManager(BaseManager):
         while self.pool_is_full():
             time.sleep(0.01)
             self.update_worker_status()
-            self.send("Done: %d/%d | Working: %d" % (finished - self.live_workers,
+            self.send("  Done: %d/%d | Working: %d" % (finished - self.live_workers,
                                                      num_tasks, self.live_workers))
 
     def wait_until_empty(self, finished, num_tasks):
@@ -64,5 +64,5 @@ class ClientManager(BaseManager):
             while not self.pool_is_empty():
                 time.sleep(0.2)
                 self.update_worker_status()
-                self.send("Done: %d/%d | Working: %d" % (finished - self.live_workers,
+                self.send("  Done: %d/%d | Working: %d" % (finished - self.live_workers,
                                                          num_tasks, self.live_workers))

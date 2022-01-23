@@ -1,94 +1,87 @@
 import argparse
-import sys
 import os
 import pickle
+import sys
 
 
-parser = argparse.ArgumentParser(description="BeeDrive Command Line Launcher!")
-parser.add_argument("service",
-                    help="whice service you need?",
-                    choices=["cloud", "upload", "download", "proxy"],
-                    type=str)
-
-parser.add_argument("arg1", help="the first additional argument (optional)",
-                    nargs="?", default="")
-
-parser.add_argument("arg2", help="the second additional argument (optional)",
-                    nargs="?", default="")
-
-parser.add_argument("-mode",
-                    help="work on Command Line or Window Application?",
-                    choices=["app", "cmd"],
-                    default="cmd",
-                    type=str)
-
-parser.add_argument("-reset_config",
-                    help="reset default configure file setting [y|n]",
-                    default="n",
-                    choices=["y", "n"])
-
-parser.add_argument("-custom_config",
-                    help="launch service with your custom configure file",
-                    type=str)
+from . import cloud, proxy, client
 
 
-args = parser.parse_args()
-reset = args.reset_config == "y"
-if args.custom_config:
-    path = args.use_custom_config
-    if not path.endswith(".bee"):
-        print("BeeDrive configure file should end with .bee")
-        sys.exit()
-    if not os.path.exists(path):
-        print("Cannot open file: %s" % path)
-        sys.exit()
-    config = pickle.load(open(path, "rb"))
-else:
-    config = {}
-if reset and config:
-    print("Cannot reset default config and use coustom config at the same time.")
+def error(msg):
+    print("Error: %s" % msg)
     sys.exit()
-    
 
-if args.mode == "app":
-    try:
-        import PySimpleGUI
-    except ImportError:
-        print("No GUI supported on this environment. \nTry: pip install PySimpleGUI ")
-        sys.exit()
 
-if args.service == "proxy":
-    if not args.arg1:
-        print("Launch Proxy service needs one more argument to set port.")
-        sys.exit()
-    from . import proxy
-    proxy.proxy_forever(args.arg1)
+def parse_config():
+    parser = argparse.ArgumentParser(description="BeeDrive Command Line Launcher!")
+    parser.add_argument("service",
+                        help="whice service you need?",
+                        choices=["cloud", "upload", "download", "proxy"],
+                        type=str)
 
-elif args.service == "cloud":
-    from . import cloud
+    parser.add_argument("arg1", help="the first additional argument (optional)",
+                        nargs="?", default="")
+
+    parser.add_argument("arg2", help="the second additional argument (optional)",
+                        nargs="?", default="")
+
+    parser.add_argument("-mode",
+                        help="work on Command Line or Window Application?",
+                        choices=["app", "cmd"],
+                        default="cmd",
+                        type=str)
+
+    parser.add_argument("-reset_config",
+                        help="reset default configure file [y|n]",
+                        default="n",
+                        choices=["y", "n"])
+
+    parser.add_argument("-custom_config",
+                        help="launch service with your custom configure file",
+                        type=str)
+    args = parser.parse_args()
+    args.reset = args.reset_config == "y"
+    config = pickle.load(open(args.custom_config, "rb")) if args.custom_config else {}
+    if args.reset and config:
+        error("-reset_config and -custom_config")
+    return args, config
+
+
+def main():
+    args, config = parse_config()
     if args.mode == "app":
-        cloud.cloud_gui()
-    else:
-        cloud.cloud_cmd(args.arg1, args.arg2, reset, config)
+        try:
+            import PySimpleGUI
+        except ImportError:
+            error("No GUI supported. \nTry: pip install PySimpleGUI ")
 
-elif args.service == "upload":
-    from .import client
-    if args.mode == "app":
-        client.upload_gui()
-    elif not args.arg1:
-        print("Missing file path to upload, try: python -m beecloud upload myfile.txt")
-        sys.exit()
-    else:
-        client.upload_cmd(args.arg1, reset, config)
+    if args.service == "proxy":
+        if not args.arg1:
+            error("Miss port argument. \nTry: python -m beedrive proxy 8889")
+        proxy.proxy_forever(args.arg1)
 
-elif args.service == "download":
-    from . import client
-    if args.mode == "app":
-        client.download_gui()
-    elif not args.arg1:
-        print("Missing file path to upload, try: python -m beecloud upload myfile.txt")
-        sys.exit()
-    else:
-        client.download_cmd(args.arg1, args.arg2,
-                          reset, config)
-    
+    elif args.service == "cloud":
+        if args.mode == "app":
+            cloud.cloud_gui()
+        else:
+            cloud.cloud_cmd(args.arg1, args.arg2, args.reset, config)
+
+    elif args.service == "upload":
+        if args.mode == "app":
+            client.upload_gui()
+        elif not args.arg1:
+            error("Miss source file. \nTry: python -m beecloud upload myfile.txt")
+        else:
+            client.upload_cmd(args.arg1, args.reset, config)
+
+    elif args.service == "download":
+        if args.mode == "app":
+            client.download_gui()
+        elif not args.arg1:
+            error("Miss target file. \nTry: python -m beecloud download myfile.txt")
+        else:
+            client.download_cmd(args.arg1, args.arg2, args.reset, config)
+            
+        
+if __name__ == "__main__":
+    main()
