@@ -1,9 +1,10 @@
-from json import loads, dumps, JSONDecodeError
+import pickle
 
 from .idcard import IDCard
 from .worker import BaseWorker
 from ..utils import build_connect
 from ..logger import callback_info, callback_error
+from ..encrypt import HAS_AES
 from ..constant import END_PATTERN, TCP_BUFF_SIZE, STAGE_FAIL
 
 
@@ -23,7 +24,6 @@ class BaseClient(BaseWorker):
         self.verify_connect()
         if self.peer:
             self.active()
-            #self.settimeout(10)
 
     def build_connect(self):
         # connect the server
@@ -58,12 +58,13 @@ class BaseClient(BaseWorker):
             raise ValueError(welcome)
             
         # speak out who am I and what I need
-        header = str(self.info.info).encode()
+        header = pickle.dumps(self.info.info)
         header = {"user": self.info.name,
                   "task": self.task,
-                  "info": self.aescoder.encrypt(header)}
+                  "info": self.aescoder.encrypt(header) if HAS_AES else header,
+                  "text": not HAS_AES}
 
-        header = str(header).encode()
+        header = pickle.dumps(header)
         if self.use_proxy:
             target = str(self.target).encode("utf8")
             source = self.info.code.encode("utf8")
@@ -76,10 +77,10 @@ class BaseClient(BaseWorker):
             if rspn.startswith(b"Error"):
                 raise Exception(rspn.decode().split(" ", 1)[1])
 
-            self.peer = loads(rspn)
+            self.peer = pickle.loads(rspn)
             if self.peer['code'] != IDCard(self.peer['uuid'], self.peer['name'],
                                       self.peer['mac'], self.peer['crypto'],
                                       self.peer['sign']).code:
                 self.peer = None           
-        except JSONDecodeError:
+        except Exception as e:
             self.peer = None

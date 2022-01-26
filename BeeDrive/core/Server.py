@@ -38,9 +38,8 @@ class WorkerManager(BaseManager):
 
 
 class LocalServer(BaseServer):
-    def __init__(self, users, port, save_path, 
-                 crypto, sign, max_manager, max_worker):
-        BaseServer.__init__(self, users, port, crypto, sign)
+    def __init__(self, users, port, save_path, max_manager, max_worker):
+        BaseServer.__init__(self, users, port)
         self.target = ("0.0.0.0", port)
         self.max_manager = max_manager
         self.max_worker = max_worker
@@ -53,6 +52,7 @@ class LocalServer(BaseServer):
         self.build_server(self.max_worker * self.max_manager)
         self.active()
         callback_info("Server has been launched at %s" % (self.target,))
+        self.add_new_manager()
 
     def add_new_task(self, client, passwd, info, task):
         while True:
@@ -86,11 +86,12 @@ class LocalServer(BaseServer):
                     self.add_new_task(client, passwd, info, task)
 
     def stop(self):
+        self._work.clear()
+        exits = ExistMessager(self.port)
         for manager in self.managers:
             manager.join_do(Stop)
-        self._work.clear()
-        ExistMessager(self.port).join()
-        callback_flush()
+        exits.join()
+        callback_info("Server has been closed successfully")
 
     def update_schedule_status(self):
         for manager in self.managers:
@@ -98,13 +99,3 @@ class LocalServer(BaseServer):
                 pass
 
                         
-if __name__ == '__main__':
-    server = LocalServer(
-                name='JacksonWoo',
-                port=8888,
-                save_path=r'C:\Users\JacksonWoo\Desktop',
-                crypto=False,
-                sign=False)
-    server.start()
-    sleep(3600)
-    server.stop()

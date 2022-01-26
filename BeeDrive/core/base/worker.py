@@ -1,10 +1,10 @@
-from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
+from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_KEEPALIVE
 from threading import Thread, Event
 from re import compile as recompile
 
 from .idcard import IDCard
-from ..crypto import AESCoder, MD5Coder
-from ..utils import get_uuid, get_mac_address, clean_coder, base_coder, disconnect
+from ..encrypt import AESCoder, MD5Coder, HAS_AES
+from ..utils import clean_coder, base_coder, disconnect
 from ..logger import callback_error, callback_flush
 from ..constant import END_PATTERN, TCP_BUFF_SIZE, STAGE_INIT, DISK_BUFF_SIZE
 
@@ -13,14 +13,12 @@ END_PATTERN_COMPILE = recompile(END_PATTERN)
 
 
 class BaseWorker(Thread):
-    def __init__(self, name, passwd, socket=None, crypto=True, signature=True):
+    def __init__(self, name, passwd, socket=None, crypto=False, sign=False):
         Thread.__init__(self)
         self.socket = socket        # socket instance
-        self.info = IDCard(get_uuid(), name,
-                           get_mac_address(),
-                           crypto, signature)
-        self.aescoder = AESCoder(passwd)
-        self.md5coder = MD5Coder(passwd)
+        self.info = IDCard.create(name, crypto, sign)
+        self.aescoder = AESCoder(passwd) if HAS_AES else None
+        self.md5coder = MD5Coder(passwd) if sign else None
         self.use_proxy = False      # we try to connect the target directly
         self.alive = False          # whether ready for serving
         self.sender = None          # pipeline for sending data
@@ -33,6 +31,7 @@ class BaseWorker(Thread):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.handle_error(exc_type, exc_val)
+        self.alive = False
         self.disconnect()
 
     def active(self):
@@ -45,12 +44,13 @@ class BaseWorker(Thread):
         if not self.socket:
             self.socket = socket(AF_INET, SOCK_STREAM)
             self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, True)
+            self.socket.setsockopt(SOL_SOCKET, SO_KEEPALIVE, True)
 
     def build_pipeline(self):
-        ase_encoder = self.aescoder.encrypt if self.info.crypto else clean_coder
-        ase_decoder = self.aescoder.decrypt if self.info.crypto else clean_coder
-        md5_encoder = self.md5coder.encrypt if self.info.sign else clean_coder
-        md5_decoder = self.md5coder.decrypt if self.info.sign else clean_coder
+        ase_encoder = self.aescoder.encrypt if self.aescoder else clean_coder
+        ase_decoder = self.aescoder.decrypt if self.aescoder else clean_coder
+        md5_encoder = self.md5coder.encrypt if self.md5coder else clean_coder
+        md5_decoder = self.md5coder.decrypt if self.md5coder else clean_coder
         if hasattr(self, 'target') and self.use_proxy:
             target = str(self.target).encode("utf8")
             source = self.info.code.encode("utf8")
@@ -92,7 +92,7 @@ class BaseWorker(Thread):
         try:
             self.socket.sendall(self.sender(text) + END_PATTERN)
         except ConnectionResetError:
-            pass
+            self.alive = False
 
     def recv(self):
         msg = []
@@ -108,7 +108,3 @@ class BaseWorker(Thread):
         finally:
             return b''.join(msg)
 
-    def stop(self):
-        if self.alive:
-            self._work.clear()
-        callback_flush()

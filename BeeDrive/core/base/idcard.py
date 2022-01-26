@@ -1,4 +1,6 @@
-from ..crypto import md5_encode
+from ..encrypt import md5_encode
+from ..utils import get_uuid, get_mac
+
 
 class IDCard:
 
@@ -24,4 +26,8 @@ class IDCard:
 
     def __setstate__(self, pkl):
         self.info = pkl
+
+    @classmethod
+    def create(cls, name, crypto, sign):
+        return cls(get_uuid(), name, get_mac(), crypto, sign)
         

@@ -57,13 +57,13 @@ class BaseProxyNode(Thread):
         if sock is not None:
             try:
                 sock.shutdown(2)
-            except OSError:
+            except EOFError:
                 pass
             sock.close()
             if sock in self.routes:
                 addr = self.routes.pop(sock)
                 del self.routes[addr]
-            # callback_info("Connection %s has been removed" % sock)
+                callback_info("Connection %s has been removed" % addr.decode())
 
     def stop(self):
         self.alive = False
@@ -79,7 +79,10 @@ class HostProxy(BaseProxyNode):
             callback_info("Public Host Proxy is launched at port %d" % self.port)
             while self.alive:
                 for sock in select(self.listen_sock, [], [])[0]:
-                    self.handle_one_request(sock)
+                    try:
+                        self.handle_one_request(sock)
+                    except:
+                        self.remove_connect(sock)
 
     def accept(self):
         client, addr = self.node.accept()
@@ -156,16 +159,19 @@ class LocalRelay(BaseProxyNode):
                 sockets = self.listen_sock
                 while len(sockets) == 0 and self.alive:
                     callback_info("Trying to reconnect %s" % (self.master,))
-                    sleep(30)
                     for sock in self.routes:
                         if isinstance(sock, socket):
                             self.remove_connect(sock)
+                    sleep(30)
                     self.build_server()
                     sockets = self.listen_sock
                 if not self.alive:
                     break
                 for sock in select(sockets, [], [])[0]:
-                    self.handle_one_request(sock)
+                    try:
+                        self.handle_one_request(sock)
+                    except:
+                        self.remove_connect(sock)
                     
     def handle_one_request(self, sock):
         peername = sock.getpeername()

@@ -64,7 +64,9 @@ class BaseManager(multiprocessing.Process):
         try:
             return self.pipe.recv()
         except EOFError:
-            return None
+            return {"cmd": Stop}
+        except KeyboardInterrupt:
+            return {"cmd": Stop}
 
     def run(self):
         while self.alive:

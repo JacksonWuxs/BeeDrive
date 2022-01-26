@@ -7,14 +7,8 @@ from multiprocessing import cpu_count
 
 from .core.Server import LocalServer
 from .core.Proxy import LocalRelay
-from .core.utils import analysis_ip, resource_path
+from .core.utils import analysis_ip, resource_path, trust_sleep
 from .configures import save_config, load_config
-
-
-try:
-    import PySimpleGUI as sg
-except ImportError:
-    sg = None
 
 
 def parse_users(string):
@@ -29,8 +23,8 @@ class ConfigLauncher:
         self.hosts = [LocalRelay(proxy, config["rport"], config["sport"], config["pname"]) \
                            for proxy in config["proxy"]]
         self.server = LocalServer(users=config["users"], port=config["sport"],
-                                  save_path=config["spath"], crypto=config["crypt"], sign=config["sign"],
-                                  max_manager=config["manager"], max_worker=config["worker"])
+                                  save_path=config["spath"], max_manager=config["manager"],
+                                  max_worker=config["worker"])
 
     def start(self):
         self.server.start()
@@ -43,13 +37,11 @@ class ConfigLauncher:
         self.server.stop()
 
     def wait(self):
-        try:
-            time.sleep(float(self.config["times"]))
-        except KeyboardInterrupt:
-            pass
+        trust_sleep(float(self.config["times"]))
 
 
 def cloud_gui():
+    import PySimpleGUI as sg
     config = load_config("cloud")
     users = ";".join(_[0] + ":" + _[1] for _ in config.get("users", []))
     proxy = ";".join(_[0] + ":" + str(_[1]) for _ in config.get("proxy", []))
@@ -84,7 +76,7 @@ def cloud_gui():
                                                 sign=True,
                                                 crypt=True,
                                                 proxy=analysis_ip(rspn[2]),
-                                                manager=max(cpu_count() - 1, 1),
+                                                manager=max(cpu_count(), 1),
                                                 worker=4,
                                                 pname=rspn[4],
                                                 rport=rspn[3]))
@@ -99,22 +91,36 @@ def cloud_gui():
     window.close()
 
 
-def cmd_get_config(reset_config, custom_config):
-    if len(custom_config) > 0:
+def cmd_get_config(choose):
+    if isinstance(choose, dict):
         for key in ["users", "sport", "spath", "times", "sign",
                     "crypt", "proxy", "pname", "rport"]:
-            if key not in custom_config:
+            if key not in choose:
                 raise ValueError("Loaded custom configure doesn't support Cloud service.")
-        return custom_config
+        return choose
 
     config = load_config("cloud")
-    if not reset_config and len(config) > 0:
+    if choose == "check":
+        print("Cloud default configures:")
+        for name, key in [("Users Info:", "users"),
+                          ("Server Port:", "sport"),
+                          ("Server Path:", "spath"),
+                          ("Durations:", "times"),
+                          ("#Managers:", "manager"),
+                          ("#Workers:", "worker"),
+                          ("Proxy IP:", "proxy"),
+                          ("Nickname:", "pname"),
+                          ("Relay Port:", "rport")]:
+            print(name, config.get(key, ""))
+        sys.exit()
+
+    if choose == "default" and len(config) > 0:
         return config
 
-    print("\nSetting configurations")
-    print("\n[1] Default Cloud Service")
+    print("\nSetting default config for Cloud Drive")
+    print("\n[1] Drive Service")
     config["users"] = parse_users(input("1. Authorized users and passwords [user:passwd;user:passwd;...]:"))
-    config["sport"] = int(input("2. One port to launch the Server [1-65555]:"))
+    config["sport"] = int(input("2. One port to launch the Server [1-52560]:"))
     config["spath"] = input("3. A path to save file on your computer: ")
     config["times"] = float(input("4. How many minutes your want to keep the cloud alive? ")) * 60
     config["manager"] = max(int(input("5. How many CPUs the service can use at most? ")), 1)
@@ -132,8 +138,8 @@ def cmd_get_config(reset_config, custom_config):
     return save_config("cloud", **config)
 
 
-def cloud_cmd(temp_port, temp_time, reset_config, custom_config):
-    config = cmd_get_config(reset_config, custom_config)
+def cloud_cmd(temp_port, temp_time, config):
+    config = cmd_get_config(config)
     if temp_port:
         config["sport"] = int(temp_port)
     if temp_time:

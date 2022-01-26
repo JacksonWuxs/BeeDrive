@@ -1,6 +1,7 @@
 import time
 import getpass
 import os
+import sys
 
 from .core.Client import ClientManager
 from .core.constant import NewTask, Stop, Done, STAGE_FAIL, STAGE_DONE
@@ -11,33 +12,65 @@ from .configures import save_config, load_config
 GUI_CONFIG = dict(size=(7, 1), justification='right', text_color="black", background_color="white")
 
 
-def cmd_get_config(service, reset_config, custom_config):
-    if len(custom_config) > 0:
+def cmd_get_config(choose):
+    if isinstance(choose, dict) > 0:
         for key in ["user", "pwd", "cloud", "proxy", "crypto", "sign"]:
-            if key not in custom_config:
-                raise ValueError("Custom config file isn't valid for %s service." % service)
-        return custom_config
-
-    config = load_config(service)
-    if not reset_config and len(config) > 0:
+            if key not in choose:
+                raise ValueError("Custom config file isn't valid for client service.")
         return config
 
-    print("\nSetup default config")
+    config = load_config("client")
+    if choose == "check":
+        print("Client default configures:")
+        for name, key in [("UserName:", "user"),
+                          ("Password:", "passwd"),
+                          ("Cloud IP:", "cloud"),
+                          ("Proxy IP:", "proxy"),
+                          ("Pool Size:", "pool"),
+                          ("Sign:", "sign"),
+                          ("Crypto:", "crypto"),
+                          ("Save To:", "root")]:
+            print(name, config.get(key, ""))
+        sys.exit()
+
+    if choose == "default" and len(config) > 0:
+        return config
+    print("\nSetup default config for Client")
     config["user"] = input("1. Username to login the Cloud: ")
     config["passwd"] = getpass.getpass("2. Password to login the Cloud: ")
-    config["cloud"] = analysis_ip(input("3. Cloud service address [ip:port]: "))[0]
+    config["cloud"] = analysis_ip(input("3. Cloud service IP address [ip:port]: "))[0]
     config["proxy"] = analysis_ip(input("4. Forwarding Proxy service addresses [ip:port;ip;port;...]: "))
     config['pool'] = int(input("5. Maximum numer of concurrently transferring files: "))
     config["sign"] = input("6. Sign transfering data (may slow down speed) [y|n]:").lower() == "y"
     config["crypto"] = input("7. Encrypto transfering data (may slow down speed) [y|n]:").lower() == "y"
-    config["root"] = os.curdir
-    config["task"] = service
-    return save_config(service, **config)
+    config["root"] = input("8. Default path to save files: ")
+    return save_config("client", **config)
+
+
+def gui_run(config, window, service):
+    manager = ClientManager.get_controller(name=config["user"], pool_size=config["pool"])
+    manager.relay_do(NewTask, task=service, **config)
+    service = service.capitalize()
+    while True:
+        msg = manager.read()
+        if not isinstance(msg, (str, bytes)):
+            continue
+
+        msg = msg.strip()
+        if msg.startswith(service):
+            l, m, r = msg.split(" | ")[-3:]
+            msg = " | ".join([l.split(" ")[-1], m, r])
+        window["status"].update(msg)
+        if window.read(timeout=0.0001) in ("Cancel", None) or \
+           msg.startswith("Error:"):
+            break
+    manager.join_do(Stop)
+    return msg
 
 
 def upload_gui():
     import PySimpleGUI as sg
-    config = load_config("upload")
+    config = load_config("client")
     proxy = ";".join(_[0] + ":" + str(_[1]) for _ in config.get("proxy", []))
     cloud = "%s:%d" % config["cloud"] if "cloud" in config else ""
     layout = [[sg.Text("Name:", **GUI_CONFIG), sg.InputText(config.get("user", ""), size=(40, 1))],
@@ -58,40 +91,24 @@ def upload_gui():
         if evt != "Submit":
             continue
 
-        config = save_config("upload",
+        config = save_config("client",
                              user=rspn[0],
                              passwd=rspn[1],
                              cloud=analysis_ip(rspn[2])[0],
                              proxy=analysis_ip(rspn[3]),
                              pool=4,
+                             root=config.get("root", "./"),
                              sign=True,
-                             crypto=True,
-                             task="upload")
+                             crypto=True)
         config["source"] = rspn["tgt"]
-        manager = ClientManager.get_controller(name=config["user"], pool_size=config["pool"])
-        manager.relay_do(NewTask, **config) 
-        while True:
-            time.sleep(0.2)
-            msg = manager.read()
-            if not isinstance(msg, (str, bytes)):
-                continue
-            msg = msg.strip()
-            if msg.startswith("Upload:"):
-                l, m, r = msg.split(" | ")[-3:]
-                msg = " | ".join([l.split(" ")[-1], m, r])
-            window["status"].update(msg)
-            if msg in (STAGE_FAIL, STAGE_DONE):
-                break
-            evt, _ = window.read(timeout=0.0001)
-            if evt == 'Cancel' or evt is None:
-                break
-        manager.join_do(Stop)
+        if gui_run(config, window, "upload") in ("Cancel", None):
+            break
     window.close()
 
 
 def download_gui():
     import PySimpleGUI as sg
-    config = load_config("download")
+    config = load_config("client")
     proxy = ";".join(_[0] + ":" + str(_[1]) for _ in config.get("proxy", []))
     cloud = "%s:%d" % config["cloud"] if "cloud" in config else ""
     layout = [[sg.Text("Name:", **GUI_CONFIG), sg.InputText(config.get("user", ""), size=(40, 1))],
@@ -112,8 +129,7 @@ def download_gui():
             break
         if evt != "Submit":
             continue
-
-        config = save_config("download",
+        config = save_config("client",
                              user=rspn[0],
                              pwd=rspn[1],
                              cloud=analysis_ip(rspn[2])[0],
@@ -121,43 +137,27 @@ def download_gui():
                              root=rspn[5],
                              pool=4,
                              sign=True,
-                             crypt=True,
-                             task="download")
+                             crypt=True)
         config["source"] = rspn[4]
-        manager = ClientManager.get_controller(name=config["user"], pool_size=config["pool"])
-        manager.relay_do(NewTask, **config) 
-        while True:
-            time.sleep(0.2)
-            msg = manager.read()
-            if not isinstance(msg, (str, bytes)):
-                continue
-            msg = msg.strip()
-            if msg.startswith("Download:"):
-                l, m, r = msg.split(" | ")[-3:]
-                msg = " | ".join([l.split(" ")[-1], m, r])
-            window["status"].update(msg)
-            if msg in (STAGE_FAIL, STAGE_DONE):
-                break
-            evt, _ = window.read(timeout=0.0001)
-            if evt == 'Cancel' or evt is None:
-                break
-        manager.join_do(Stop)
+        if gui_run(config, window, "upload") in ("Cancel", None):
+            break
     window.close()
 
 
-def upload_cmd(source, reset_config, custom_config):
-    config = cmd_get_config("upload", reset_config, custom_config)
+def upload_cmd(source, config):
+    config = cmd_get_config(config)
     config["source"] = source
     manager = ClientManager.get_controller(name=config["user"], pool_size=config["pool"])
-    manager.join_do(NewTask, **config)
+    manager.join_do(NewTask, task="upload", **config)
     manager.join_do(Stop)
 
 
-def download_cmd(source, root, reset_config, custom_config):
-    config = cmd_get_config("download", reset_config, custom_config)
+def download_cmd(source, root, config):
+    config = cmd_get_config(config)
     config["source"] = source
-    config["root"] = root if root else "./"
+    if root:
+        config["root"] = root
     manager = ClientManager.get_controller(name=config["user"], pool_size=config["pool"])
-    manager.join_do(NewTask, **config)
+    manager.join_do(NewTask, task="download", **config)
     manager.join_do(Stop)
     

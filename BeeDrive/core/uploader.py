@@ -1,10 +1,10 @@
 from os import path, makedirs
-from json import dumps, loads, JSONDecodeError
+from pickle import dumps, loads
 from time import time, sleep
 from traceback import format_exc
 
 from .base import BaseClient, BaseWaiter
-from .crypto import file_md5
+from .encrypt import file_md5
 from .constant import (STAGE_PRE, STAGE_RUN, STAGE_DONE,
                        STAGE_FAIL, TCP_BUFF_SIZE, DISK_BUFF_SIZE)
 from .logger import callback_info, callback_processbar, callback_flush, callback_error
@@ -38,7 +38,6 @@ class UploadClient(BaseClient):
                 
                 task = "Upload:%s" % fname
                 begin_time = last_time = time()
-                update_time = 0.0
                 with open(self.file, 'rb') as f:
                     f.seek(bkpnt)
                     while True:
@@ -46,10 +45,9 @@ class UploadClient(BaseClient):
                         if len(row) == 0:
                             break
                         self.send(row)
-                        if time() - last_time >= update_time:
+                        if time() - last_time >= 0.1:
                             bkpnt = f.tell()
                             self.percent = bkpnt / fsize
-                            update_time = 0.1
                             spent_time = max(0.1, time() - begin_time)
                             self.msg = callback_processbar(
                                             self.percent, task,
@@ -106,7 +104,7 @@ class UploadWaiter(BaseWaiter):
 
                 # Now begin to recive file
                 begin_time = last_time = time()
-                update_time = 0.0
+                self.settimeout(30.)
                 task = u"Upload:%s" % fname
                 with open(fpath, mode, DISK_BUFF_SIZE) as f:
                     while self.percent < 1.0:
@@ -116,9 +114,8 @@ class UploadWaiter(BaseWaiter):
                             break
                         f.write(text)
                         bkpnt += len(text)
-                        if time() - last_time >= update_time:
-                            self.percent = bkpnt / fsize
-                            update_time = 0.1
+                        self.percent = bkpnt / fsize
+                        if time() - last_time >= 0.1:
                             spent = max(0.001, time() - begin_time)
                             self.msg = callback_processbar(self.percent, fname, bkpnt/spent, spent)
 
@@ -127,11 +124,9 @@ class UploadWaiter(BaseWaiter):
                 progress = bkpnt/fsize if fsize > 0 else 1.0
                 self.msg = callback_processbar(progress, task, bkpnt/spent, spent)
                 self.stage = STAGE_DONE if file_md5(fpath, bkpnt) == fcode else STAGE_FAIL
-                self.send(self.stage)
-            except JSONDecodeError:
-                self.msg = self.stage = STAGE_FAIL
             except ValueError:
                 self.msg = self.stage = STAGE_FAIL
             except Exception:
                 self.msg = self.stage = STAGE_FAIL
-        sleep(0.1)
+            finally:
+                self.send(self.stage)                

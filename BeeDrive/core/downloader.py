@@ -1,9 +1,9 @@
 from os import path, makedirs
-from json import dumps, loads, JSONDecodeError
+from pickle import dumps, loads
 from time import time, sleep
 
 from .base import BaseClient, BaseWaiter
-from .crypto import file_md5
+from .encrypt import file_md5
 from .constant import (STAGE_PRE, STAGE_RUN, STAGE_DONE,
                        STAGE_FAIL, TCP_BUFF_SIZE, DISK_BUFF_SIZE)
 from .logger import callback_info, callback_processbar, callback_flush
@@ -26,7 +26,6 @@ class DownloadClient(BaseClient):
         local_file = path.abspath(path.join(self.root, self.file))
         fsize = path.getsize(local_file) if path.isfile(local_file) else 0
         fcode = file_md5(local_file, fsize) if path.isfile(local_file) else b""
-        
         with self:
             # requesting for a specific file
             self.send(str({'fname': self.file, 'fcode': fcode, 'fsize': fsize}))
@@ -57,10 +56,9 @@ class DownloadClient(BaseClient):
                 self.percent = bkpnt / fsize
                 self.stage = STAGE_RUN
                 with open(local_file, mode, DISK_BUFF_SIZE) as f:
-                    while self.percent < 1:
+                    while self.alive and self.percent < 1:
                         text = self.recv()
                         if not text:
-                            callback_info("Breakout with timeout ERROR")
                             break
                         
                         f.write(text)
@@ -76,13 +74,10 @@ class DownloadClient(BaseClient):
                 spent = max(0.001, time() - begin_time)
                 self.msg = callback_processbar(bkpnt/fsize, task, bkpnt/spent, spent)
                 self.msg = self.stage = STAGE_DONE if file_md5(local_file, bkpnt) == fcode else STAGE_FAIL
-            except JSONDecodeError:
-                self.msg = self.stage = STAGE_FAIL
-            except ValueError:
+            except Exception:
                 self.msg = self.stage = STAGE_FAIL
             finally:
                 self.send(self.stage)
-            sleep(1)
 
 
 class DownloadWaiter(BaseWaiter):
@@ -139,15 +134,14 @@ class DownloadWaiter(BaseWaiter):
 
                 begin_time = last_time = time()
                 task = u"Download:%s" % path.split(fname)[1]
-                update_wait = 0.0
                 with open(local_file, "rb") as f:
                     f.seek(bkpnt)
-                    while True:
+                    while self.alive:
                         row = f.read(TCP_BUFF_SIZE)
                         if len(row) == 0:
                             break
                         self.send(row)
-                        if time() - last_time >= update_wait:
+                        if time() - last_time >= 0.1:
                             bkpnt = f.tell()
                             self.percent = bkpnt / local_size
                             spent_time = max(0.001, time() - begin_time)
@@ -160,6 +154,6 @@ class DownloadWaiter(BaseWaiter):
                 spent = max(0.001, time() - begin_time)
                 self.msg = callback_processbar(bkpnt/local_size, task, bkpnt/spent, spent)
                 self.stage = self.msg = self.recv().decode()
-            except JSONDecodeError:
+            except Exception:
                 self.msg = self.stage = STAGE_FAIL
-        self.stop()
+        

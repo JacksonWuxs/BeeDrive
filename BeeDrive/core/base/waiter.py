@@ -1,4 +1,4 @@
-from json import dumps
+import pickle
 
 from .worker import BaseWorker
 
@@ -12,7 +12,6 @@ class BaseWaiter(BaseWorker):
     def __enter__(self):
         self.build_socket()
         self.build_pipeline()
-        self.send(dumps(self.info.info))
+        self.send(pickle.dumps(self.info.info))
         self.active()
-        #self.settimeout(10)
 

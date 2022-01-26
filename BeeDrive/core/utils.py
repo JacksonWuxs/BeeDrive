@@ -1,6 +1,21 @@
-from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
+import time
+
+from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_KEEPALIVE
 from uuid import getnode, uuid1
 from os import path, listdir
+
+
+def trust_sleep(time_to_sleep, longest_sleep=604800):
+    assert isinstance(time_to_sleep, (float, int))
+    assert time_to_sleep > 0
+    start = time.time()
+    stop = start + time_to_sleep
+    while time.time() < stop:
+        try:
+            time.sleep(min(longest_sleep, stop - time.time()))
+        except KeyboardInterrupt:
+            break
+    return time.time() - stop
 
 
 def resource_path(relative_path=""):
@@ -13,7 +28,7 @@ def resource_path(relative_path=""):
     return path.abspath(path.join(base_path, relative_path))
 
 
-def get_mac_address():
+def get_mac():
     addr = hex(getnode())[2:]
     return '-'.join(addr[i:i+2] for i in range(0, len(addr), 2))
 
@@ -25,6 +40,7 @@ def get_uuid():
 def build_connect(host, port):
     conn = socket(AF_INET, SOCK_STREAM)
     conn.setsockopt(SOL_SOCKET, SO_REUSEADDR, True)
+    conn.setsockopt(SOL_SOCKET, SO_KEEPALIVE, True)
     try:
         conn.connect((host, port))
         return conn
@@ -33,7 +49,7 @@ def build_connect(host, port):
     except TimeoutError:
         return "Timeout"
     except Exception:
-        return "UnknowError"
+        return "UnknowError Raised during building connection"
 
 
 def disconnect(sock):
