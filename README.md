@@ -75,7 +75,7 @@ BeeDrive relies on two optional dependencies. `PySimpleGUI` is used to support G
 
   You ONLY need to setup at the first time running `BeeDrive cloud`, it will remember your setting in the future. 
 
-  In this case, we not only launch a local personal drive, but also regist it on our public forwarding servers. `34.94.43.17:8889` is running at US, while `8.130.53.35:8889` is working in China. After we have a name on proxies, our drive can be accessed with this nick name instead of IP address.
+  In this case, we not only launch a local personal drive, but also regist it on our public forwarding servers. `47.89.211.235:8889` is running at US, while `8.130.53.35:8889` is working in China. After we have a name on proxies, our drive can be accessed with this nick name instead of IP address.
 
 ```bash
 > BeeDrive cloud 
@@ -92,12 +92,12 @@ Setting configurations
 8. How many tasks can each CPU accept at most? 8
 
 [2] Free NAT Service [y|n]: y
-9. Accessible Forwarding servers [ip:port;ip;port;...]: 34.94.43.17:8889;8.130.53.35:8889
+9. Accessible Forwarding servers [ip:port;ip;port;...]: 47.89.211.235:8889;8.130.53.35:8889
 10. A public name on the Forwarding server [anything]: wxsPC
 11. One port to launch the local Proxy server [1-65555]: 8890
 [Sun Jan 23 05:26:25 2022] INFO: Update BeeDrive-cloud default config at c:\.ProgramData\BeeDrive\cloud.bee
 [Sun Jan 23 05:26:25 2022] INFO: Server has been launched at ('0.0.0.0', 8888)
-[Sun Jan 23 05:26:25 2022] INFO: Registed at Proxy 34.94.43.17:8889 with nickname wxsPC:8888
+[Sun Jan 23 05:26:25 2022] INFO: Registed at Proxy 47.89.211.235:8889 with nickname wxsPC:8888
 [Sun Jan 23 05:26:26 2022] INFO: Registed at Proxy 8.130.53.35:8889 with nickname wxsPC:8888
 ```
 
@@ -119,12 +119,12 @@ Setup default config
 1. Username to login the Cloud: BeeDrive
 2. Password to login the Cloud:
 3. Cloud service address [ip:port]: wxsPC:8888
-4. Forwarding Proxy service addresses [ip:port;ip;port;...]: 34.94.43.17:8889
+4. Forwarding Proxy service addresses [ip:port;ip;port;...]: 47.89.211.235:8889
 5. Maximum numer of concurrently transferring files: 4
 6. Sign transfering data (may slow down speed) [y|n]:y
 7. Encrypto transfering data (may slow down speed) [y|n]:y
 [Sun Jan 23 05:36:08 2022] INFO: Update BeeDrive-upload default config at c:\.ProgramData\BeeDrive\upload.bee
-[Sun Jan 23 05:36:11 2022] INFO: - using proxy 34.94.43.17:8889 to connect target wxsPC:8888
+[Sun Jan 23 05:36:11 2022] INFO: - using proxy 47.89.211.235:8889 to connect target wxsPC:8888
 Upload:myfile.txt: ================================================== 100.0% | 0.00KB/s |  0
 ```
 
