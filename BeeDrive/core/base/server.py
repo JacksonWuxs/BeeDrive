@@ -49,25 +49,26 @@ class BaseServer(BaseWorker):
 
     def verify_authorize_header(self, socket):
         try:
-            socket.settimeout(10)
+            socket.settimeout(30)
             head = socket.recv(TCP_BUFF_SIZE)
             socket.settimeout(None)
             if head.endswith(END_PATTERN):
                 head = head[:-len(END_PATTERN)]
         except ConnectionResetError:
-            callback_info("HERE")
             return
+        
         try:
             head = pickle.loads(head)
             assert isinstance(head ,dict) and len(head) == 4
             for key in ["user", "task", "info", "text"]:
                 assert key in head
         except Exception:
-            callback_info("HERE2")
             return
+        
         if head["user"] not in self.users:
             socket.sendall(("Error: `%s` is not a legal user name" % head["user"]).encode() + END_PATTERN)
             return
+        
         try:
             decoded_head = head["info"]
             if not head["text"]:

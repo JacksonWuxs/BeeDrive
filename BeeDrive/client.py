@@ -12,6 +12,21 @@ from .configures import save_config, load_config
 GUI_CONFIG = dict(size=(7, 1), justification='right', text_color="black", background_color="white")
 
 
+def cmd_check_config():
+    config = load_config("client")
+    print("Client default configures:")
+    for name, key in [("UserName:", "user"),
+                      ("Password:", "passwd"),
+                      ("Cloud IP:", "cloud"),
+                      ("Proxy IP:", "proxy"),
+                      ("Pool Size:", "pool"),
+                      ("Sign:", "sign"),
+                      ("Crypto:", "crypto"),
+                      ("Save To:", "root")]:
+        print(name, config.get(key, ""))
+    sys.exit()
+
+
 def cmd_get_config(choose):
     if isinstance(choose, dict) > 0:
         for key in ["user", "pwd", "cloud", "proxy", "crypto", "sign"]:
@@ -20,19 +35,6 @@ def cmd_get_config(choose):
         return config
 
     config = load_config("client")
-    if choose == "check":
-        print("Client default configures:")
-        for name, key in [("UserName:", "user"),
-                          ("Password:", "passwd"),
-                          ("Cloud IP:", "cloud"),
-                          ("Proxy IP:", "proxy"),
-                          ("Pool Size:", "pool"),
-                          ("Sign:", "sign"),
-                          ("Crypto:", "crypto"),
-                          ("Save To:", "root")]:
-            print(name, config.get(key, ""))
-        sys.exit()
-
     if choose == "default" and len(config) > 0:
         return config
     print("\nSetup default config for Client")

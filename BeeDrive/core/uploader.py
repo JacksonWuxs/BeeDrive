@@ -5,8 +5,7 @@ from traceback import format_exc
 
 from .base import BaseClient, BaseWaiter
 from .encrypt import file_md5
-from .constant import (STAGE_PRE, STAGE_RUN, STAGE_DONE,
-                       STAGE_FAIL, TCP_BUFF_SIZE, DISK_BUFF_SIZE)
+from .constant import TCP_BUFF_SIZE, DISK_BUFF_SIZE
 from .logger import callback_info, callback_processbar, callback_flush, callback_error
 
 
@@ -18,52 +17,45 @@ class UploadClient(BaseClient):
         self.percent = 0.0
         self.start()
         
-    def run(self):
-        self.stage = STAGE_PRE
+    def prepare(self):
         self.msg = "Collecting file information"
-        fname = path.split(self.file)[1]
-        fsize = path.getsize(self.file)
-        fcode = file_md5(self.file, fsize)
+        return {"fname": path.split(self.file)[1],
+                "fsize": path.getsize(self.file)
+                "fcode": file_md5(self.file, fsize)}
 
-        with self:
-            self.send(dumps({'fname': fname, 'fsize': fsize,
-                             'fcode': fcode, 'fold': self.fold}))
-            try:
-                self.msg = "Verifying task progress"
-                info = loads(self.recv())
-                bkpnt = 0
-                if file_md5(self.file, info["size"]) == info["code"]:
-                    bkpnt = info["size"]
-                self.send(str(bkpnt).encode())
-                
-                task = "Upload:%s" % fname
-                begin_time = last_time = time()
-                with open(self.file, 'rb') as f:
-                    f.seek(bkpnt)
-                    while True:
-                        row = f.read(TCP_BUFF_SIZE)
-                        if len(row) == 0:
-                            break
-                        self.send(row)
-                        if time() - last_time >= 0.1:
-                            bkpnt = f.tell()
-                            self.percent = bkpnt / fsize
-                            spent_time = max(0.1, time() - begin_time)
-                            self.msg = callback_processbar(
-                                            self.percent, task,
-                                            bkpnt / spent_time,
-                                            spent_time)
-                            last_time = time()
+    def process(self, fname, fcode, fsize):
+        self.msg = "Verifying task progress"
+        self.send(dumps({'fname': fname, 'fsize': fsize,
+                         'fcode': fcode, 'fold': self.fold}))
+        info = loads(self.recv())
+        bkpnt = 0
+        if file_md5(self.file, info["size"]) == info["code"]:
+            bkpnt = info["size"]
+        self.send(str(bkpnt).encode())
+        
+        task = "Upload:%s" % fname
+        begin_time = last_time = time()
+        with open(self.file, 'rb') as f:
+            f.seek(bkpnt)
+            while self.alive:
+                row = f.read(TCP_BUFF_SIZE)
+                if len(row) == 0:
+                    break
+                self.send(row)
+                if time() - last_time >= 0.1:
                     bkpnt = f.tell()
-                    spent_time = max(0.001, time() - begin_time)
-                    self.percent = bkpnt / fsize if fsize > 0 else 1.0
-                    self.msg = callback_processbar(self.percent, task, fsize/spent_time, spent_time)
-                callback_flush()
-                self.msg = self.stage = self.recv().decode()
-            except Exception:
-                callback_error(format_exc(), 0)
-                self.msg = self.stage = STAGE_FAIL
-            sleep(1)
+                    self.percent = bkpnt / fsize
+                    spent_time = max(0.1, time() - begin_time)
+                    self.msg = callback_processbar(
+                                    self.percent, task,
+                                    bkpnt / spent_time,
+                                    spent_time)
+                    last_time = time()
+            bkpnt = f.tell()
+            spent_time = max(0.001, time() - begin_time)
+            self.percent = bkpnt / fsize if fsize > 0 else 1.0
+            self.msg = callback_processbar(self.percent, task, fsize/spent_time, spent_time)
+        self.msg = self.recv().decode()
             
 
 class UploadWaiter(BaseWaiter):
@@ -104,7 +96,6 @@ class UploadWaiter(BaseWaiter):
 
                 # Now begin to recive file
                 begin_time = last_time = time()
-                self.settimeout(30.)
                 task = u"Upload:%s" % fname
                 with open(fpath, mode, DISK_BUFF_SIZE) as f:
                     while self.percent < 1.0:

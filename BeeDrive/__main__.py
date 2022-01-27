@@ -74,11 +74,12 @@ def main():
         else:
             cloud.cloud_cmd(args.arg1, args.arg2, config)
 
+    elif args.service in ("upload", "download") and config == "check":
+        client.cmd_check_config()
+
     elif args.service == "upload":
         if args.mode == "app":
             client.upload_gui()
-        elif config == "check":
-            client.cmd_check_file()
         elif not args.arg1:
             error("Miss source file. \nTry: python -m beecloud upload myfile.txt")
         else:
@@ -87,8 +88,6 @@ def main():
     elif args.service == "download":
         if args.mode == "app":
             client.download_gui()
-        elif config == "check":
-            client.cmd_check_file()
         elif not args.arg1:
             error("Miss target file. \nTry: python -m beecloud download myfile.txt")
         else:

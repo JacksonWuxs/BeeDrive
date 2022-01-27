@@ -1,21 +1,26 @@
 import pickle
+import time
 
 from .idcard import IDCard
 from .worker import BaseWorker
 from ..utils import build_connect
-from ..logger import callback_info, callback_error
+from ..logger import callback_info
 from ..encrypt import HAS_AES
-from ..constant import END_PATTERN, TCP_BUFF_SIZE, STAGE_FAIL
+from ..constant import END_PATTERN, TCP_BUFF_SIZE
+from ..constant import (STAGE_INIT, STAGE_PRE, STAGE_RUN,
+                        STAGE_DONE, STAGE_FAIL, STAGE_RETRY)
 
 
 class BaseClient(BaseWorker):
-    def __init__(self, name, psd, target, task, crypto=True, signature=True, proxy=None):
+    def __init__(self, name, psd, target, task, retry, crypto, signature, proxy):
+        self.msg = self.stage = STAGE_INIT
         BaseWorker.__init__(self, name, psd, None, crypto, signature)
         self.proxy = [] if proxy is None else proxy
         self.target = target
         self.task = task
+        self.max_retry = retry
         self.peer = None
-        self.msg = ""
+        
  
     def __enter__(self):
         self.msg = "Connecting to cloud"
@@ -24,6 +29,12 @@ class BaseClient(BaseWorker):
         self.verify_connect()
         if self.peer:
             self.active()
+
+    def prepare(self):
+        raise NotImplemented()
+
+    def process(self, **kwrds):
+        raise NotImplemented()
 
     def build_connect(self):
         # connect the server
@@ -50,12 +61,15 @@ class BaseClient(BaseWorker):
         raise TimeoutError('cannot find out the target "%s"' % (self.target,))
 
     def verify_connect(self):
+        if self.stage == STAGE_FAIL
+            return STAGE_FAIL
+        
         welcome = self.socket.recv(128).replace(END_PATTERN, b"")
         if not (welcome.startswith(b"Welcome to use BeeDrive-") and \
                 welcome.endswith(b', please login !')):
             self.msg = u"Cannot connect to %s" % (self.target,)
             self.stage = STAGE_FAIL
-            raise ValueError(welcome)
+            return STAGE_FAIL
             
         # speak out who am I and what I need
         header = pickle.dumps(self.info.info)
@@ -84,3 +98,25 @@ class BaseClient(BaseWorker):
                 self.peer = None           
         except Exception as e:
             self.peer = None
+
+    def run(self, *args, **kwrds):
+        self.stage = STAGE_PRE
+        kwrds = self.prepare()
+        for retry in range(1, 1 + self.max_retry):
+            with self:
+                try:
+                    self.stage = STAGE_RUN
+                    self.process(**kwrds)
+                    self.stage = STAGE_DONE
+                    return
+                except ConnectionResetError:
+                    callback_info("Connection to sever is broken")
+                except ConnectionAbortedError:
+                    callback_info("Connection to sever is broken")
+            if retry <= self.max_retry:
+                wait = 2 ** (retry - 1)
+                self.stage = STAGE_RETRY
+                self.msg = "Retry connection in %d seconds" % wait
+                callback_info("Retry connection in %d seconds" % wait)
+                time.sleep(wait)
+        self.stage = STAGE_FAIL

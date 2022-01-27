@@ -2,8 +2,9 @@ STAGE_INIT = "Init"
 STAGE_PRE = "Prepare"
 STAGE_RUN = "Run"
 STAGE_STOP = "Stop"
-STAGE_DONE = "Done"
+STAGE_DONE = "Finished"
 STAGE_FAIL = "Fail"
+STAGE_RETRY = "Retry"
 
 END_PATTERN = b'___@@@___'
 
