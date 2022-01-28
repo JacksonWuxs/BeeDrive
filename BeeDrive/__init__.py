@@ -12,7 +12,7 @@ from . import cloud, client, proxy
 
 
 __name__ = "BeeDrive"
-__version__ = "0.1.3a"
-__date__ = 20220127
+__version__ = "0.1.3"
+__date__ = 20220128
 __author__ = "Xuansheng Wu"
 __update__ = "The first version of BeeDrive, including cloud, proxy, upload, and download."

@@ -114,7 +114,7 @@ class BaseClient(BaseWorker):
                 except ConnectionAbortedError:
                     pass
             if retry <= self.max_retry:
-                wait = 5 ** retry 
+                wait = 1.0 + 15 * retry # 15 seconds per retry
                 self.stage = STAGE_RETRY
                 self.msg = "Retry connection in %d seconds" % wait
                 callback_info("Retry connection in %d seconds" % wait)

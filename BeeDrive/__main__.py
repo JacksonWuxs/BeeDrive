@@ -4,13 +4,12 @@ import pickle
 import sys
 
 
-from . import cloud, proxy, client
+from . import cloud, proxy, client, __version__
 
 
 def error(msg):
     print("Error: %s" % msg)
     sys.exit()
-
 
 
 def parse_config(param):
@@ -30,6 +29,7 @@ def parse_params():
     parser = argparse.ArgumentParser(description="BeeDrive Command Line Launcher!")
     parser.add_argument("service",
                         help="whice service you need?",
+                        nargs="?",
                         choices=["cloud", "upload", "download", "proxy"],
                         type=str)
 
@@ -49,19 +49,24 @@ def parse_params():
                         help="command to control configure files",
                         default="default",
                         type=str)
-    
+
+    parser.add_argument("-version", nargs="?", default="",
+                        help="check the version of current BeeDrive service")
     args = parser.parse_args()
     return args, parse_config(args.config)
 
 
 def main():
     args, config = parse_params()
+    if args.version is None:
+        print("BeeDrive-%s" % __version__)
+        sys.exit()
+        
     if args.mode == "app":
         try:
             import PySimpleGUI
         except ImportError:
             error("No GUI supported. \nTry: pip install PySimpleGUI ")
-
 
     if args.service == "proxy":
         if not args.arg1:
@@ -92,6 +97,10 @@ def main():
             error("Miss target file. \nTry: python -m beecloud download myfile.txt")
         else:
             client.download_cmd(args.arg1, args.arg2, config)
+
+    else:
+        print("Please assign a service name (cloud, proxy, upload, download)")
+        print("Using command semms like: BeeDrive cloud")
             
         
 if __name__ == "__main__":

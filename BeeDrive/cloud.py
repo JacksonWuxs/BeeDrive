@@ -129,7 +129,7 @@ def cmd_get_config(choose):
     config["crypt"] = True
     
     if input("\n[2] Free NAT Service [y|n]: ").lower() == "y":
-        print("*Official BeeDrive Free NAT is at: beedrive.kitgram.cn:8888")
+        print("BeeDrive Official Free NAT at beedrive.kitgram.cn:8888")
         config["proxy"] = input("7. Accessible Forwarding servers [ip:port;ip;port;...]: ")
         config["proxy"] = [(addr.split(":")[0], int(addr.split(":")[1])) for addr in config["proxy"].split(";")]
         config["pname"] = input("8. A nickname on the Forwarding server: ")
