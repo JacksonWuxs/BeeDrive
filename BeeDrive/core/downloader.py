@@ -12,7 +12,7 @@ class DownloadClient(BaseClient):
     def __init__(self, user, psd, cloud, file, root, retry, crypto, sign, proxy):
         BaseClient.__init__(self, user, psd, cloud, 'download', retry, crypto, sign, proxy)
         self.root = path.abspath(root)
-        self.fold = path.split(self.file)[0]
+        self.fold = path.split(file)[0]
         self.file = file
         self.percent = 0.0
         self.start()
