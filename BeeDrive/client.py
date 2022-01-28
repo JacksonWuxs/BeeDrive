@@ -20,6 +20,7 @@ def cmd_check_config():
                       ("Cloud IP:", "cloud"),
                       ("Proxy IP:", "proxy"),
                       ("Pool Size:", "pool"),
+                      ("Max Retry:", "retry"),
                       ("Sign:", "sign"),
                       ("Crypto:", "crypto"),
                       ("Save To:", "root")]:
@@ -43,9 +44,10 @@ def cmd_get_config(choose):
     config["cloud"] = analysis_ip(input("3. Cloud service IP address [ip:port]: "))[0]
     config["proxy"] = analysis_ip(input("4. Forwarding Proxy service addresses [ip:port;ip;port;...]: "))
     config['pool'] = int(input("5. Maximum numer of concurrently transferring files: "))
-    config["sign"] = input("6. Sign transfering data (may slow down speed) [y|n]:").lower() == "y"
-    config["crypto"] = input("7. Encrypto transfering data (may slow down speed) [y|n]:").lower() == "y"
-    config["root"] = input("8. Default path to save files: ")
+    config["retry"] = int(input("6. Maximum number of retry connection: "))
+    config["sign"] = input("7. Sign transfering data (may slow down speed) [y|n]:").lower() == "y"
+    config["crypto"] = input("8. Encrypto transfering data (may slow down speed) [y|n]:").lower() == "y"
+    config["root"] = input("9. Default path to save files: ")
     return save_config("client", **config)
 
 
@@ -138,6 +140,7 @@ def download_gui():
                              proxy=analysis_ip(rspn[3]),
                              root=rspn[5],
                              pool=4,
+                             retry=5,
                              sign=True,
                              crypt=True)
         config["source"] = rspn[4]

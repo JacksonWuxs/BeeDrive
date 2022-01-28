@@ -1,7 +1,6 @@
 import pickle
 
 from os import path
-from time import sleep
 
 from .idcard import IDCard
 from .worker import BaseWorker

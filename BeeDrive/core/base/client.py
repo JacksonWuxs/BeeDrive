@@ -61,10 +61,10 @@ class BaseClient(BaseWorker):
         raise TimeoutError('cannot find out the target "%s"' % (self.target,))
 
     def verify_connect(self):
-        if self.stage == STAGE_FAIL
+        if self.stage == STAGE_FAIL:
             return STAGE_FAIL
         
-        welcome = self.socket.recv(128).replace(END_PATTERN, b"")
+        welcome = self.socket.recv(1024).replace(END_PATTERN, b"")
         if not (welcome.startswith(b"Welcome to use BeeDrive-") and \
                 welcome.endswith(b', please login !')):
             self.msg = u"Cannot connect to %s" % (self.target,)
@@ -110,11 +110,11 @@ class BaseClient(BaseWorker):
                     self.stage = STAGE_DONE
                     return
                 except ConnectionResetError:
-                    callback_info("Connection to sever is broken")
+                    pass
                 except ConnectionAbortedError:
-                    callback_info("Connection to sever is broken")
+                    pass
             if retry <= self.max_retry:
-                wait = 2 ** (retry - 1)
+                wait = 5 ** retry 
                 self.stage = STAGE_RETRY
                 self.msg = "Retry connection in %d seconds" % wait
                 callback_info("Retry connection in %d seconds" % wait)

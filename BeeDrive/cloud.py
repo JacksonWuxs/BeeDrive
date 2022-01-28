@@ -120,7 +120,7 @@ def cmd_get_config(choose):
     print("\nSetting default config for Cloud Drive")
     print("\n[1] Drive Service")
     config["users"] = parse_users(input("1. Authorized users and passwords [user:passwd;user:passwd;...]:"))
-    config["sport"] = int(input("2. One port to launch the Server [1-52560]:"))
+    config["sport"] = int(input("2. One port to launch the Server [1024-65535]:"))
     config["spath"] = input("3. A path to save file on your computer: ")
     config["times"] = float(input("4. How many minutes your want to keep the cloud alive? ")) * 60
     config["manager"] = max(int(input("5. How many CPUs the service can use at most? ")), 1)
@@ -129,6 +129,7 @@ def cmd_get_config(choose):
     config["crypt"] = True
     
     if input("\n[2] Free NAT Service [y|n]: ").lower() == "y":
+        print("*Official BeeDrive Free NAT is at: beedrive.kitgram.cn:8888")
         config["proxy"] = input("7. Accessible Forwarding servers [ip:port;ip;port;...]: ")
         config["proxy"] = [(addr.split(":")[0], int(addr.split(":")[1])) for addr in config["proxy"].split(";")]
         config["pname"] = input("8. A nickname on the Forwarding server: ")
