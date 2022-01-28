@@ -1,6 +1,6 @@
-from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_KEEPALIVE
-from threading import Thread, Event
-from re import compile as recompile
+import re
+import threading
+import socket
 
 from .idcard import IDCard
 from ..encrypt import AESCoder, MD5Coder, HAS_AES
@@ -9,30 +9,35 @@ from ..logger import callback_error, callback_flush
 from ..constant import END_PATTERN, TCP_BUFF_SIZE, STAGE_INIT, DISK_BUFF_SIZE
 
 
-END_PATTERN_COMPILE = recompile(END_PATTERN)
+END_PATTERN_COMPILE = re.compile(END_PATTERN)
 
 
-class BaseWorker(Thread):
-    def __init__(self, name, passwd, socket=None, crypto=False, sign=False):
-        Thread.__init__(self)
-        self.socket = socket        # socket instance
+class BaseWorker(threading.Thread):
+    def __init__(self, name, passwd, sock=None, crypto=False, sign=False):
+        threading.Thread.__init__(self)
+        self.socket = sock             # socket instance
         self.info = IDCard.create(name, crypto, sign)
         self.aescoder = AESCoder(passwd) if HAS_AES else None
         self.md5coder = MD5Coder(passwd) if sign else None
-        self.use_proxy = False      # we try to connect the target directly
-        self.alive = False          # whether ready for serving
-        self.sender = None          # pipeline for sending data
-        self.reciver = None         # pipeline for reciving data
+        self.use_proxy = False         # we try to connect the target directly
+        self.alive = False             # whether ready for serving
+        self.sender = None             # pipeline for sending data
+        self.reciver = None            # pipeline for reciving data
         self.history = b"" 
         self.stage = STAGE_INIT
         self.msg = STAGE_INIT
-        self._work = Event()        # kill the task
+        self._work = threading.Event() # kill the task
         self._work.set()
+
+    def __enter__(self):
+        callback_error("NotImplementedError: Please rewrite BaseWorker.__enter__()", 6, self.info)
+        raise NotImplemented("NotImplementedError: Please rewrite BaseWorker.__enter__()")
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.handle_error(exc_type, exc_val)
         self.alive = False
         self.disconnect()
+        callback_flush()
 
     def active(self):
         assert self.socket is not None
@@ -42,9 +47,9 @@ class BaseWorker(Thread):
 
     def build_socket(self):
         if not self.socket:
-            self.socket = socket(AF_INET, SOCK_STREAM)
-            self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, True)
-            self.socket.setsockopt(SOL_SOCKET, SO_KEEPALIVE, True)
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
 
     def build_pipeline(self):
         ase_encoder = self.aescoder.encrypt if self.aescoder else clean_coder
@@ -70,12 +75,8 @@ class BaseWorker(Thread):
         if exc_type is not None:
             callback_flush()
         if exc_type == KeyboardInterrupt:
-            callback_error('Connections Is Stopped by Commander-%s' % exc_val, 5, self.info)
+            callback_error('Connection Is Stopped by Commander-%s' % exc_val, 5, self.info)
         if exc_type == ConnectionRefusedError:
-            callback_error('Connection Is Refused by Host-%s' % exc_val, 1, self.info)
-        if exc_type ==  ConnectionResetError:
-            callback_error('Connection Is Broken-%s' % exc_val, 2, self.info)
-        if exc_type == ConnectionAbortedError:
             callback_error('Connection Is Refused by Host-%s' % exc_val, 1, self.info)
         if exc_type == AssertionError:
             callback_error('Message Has Been Modified-%s' % exc_val, 3, self.info)
@@ -89,10 +90,7 @@ class BaseWorker(Thread):
             self.socket.settimeout(timeout)
 
     def send(self, text=''):
-        try:
-            self.socket.sendall(self.sender(text) + END_PATTERN)
-        except ConnectionResetError:
-            self.alive = False
+        self.socket.sendall(self.sender(text) + END_PATTERN)
 
     def recv(self):
         msg = []

@@ -48,7 +48,7 @@ def callback_flush():
 
 
 def callback_error(msg, code, name=""):
-    info = '[%s] ERROR-%d: %s  -> %s\r' % (asctime(localtime()), code, msg, name)
+    info = '[%s] ERROR-%d: %s -> %s\r' % (asctime(localtime()), code, msg, name)
     printf(info)
     return info
 

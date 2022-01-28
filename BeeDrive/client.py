@@ -12,6 +12,22 @@ from .configures import save_config, load_config
 GUI_CONFIG = dict(size=(7, 1), justification='right', text_color="black", background_color="white")
 
 
+def cmd_check_config():
+    config = load_config("client")
+    print("Client default configures:")
+    for name, key in [("UserName:", "user"),
+                      ("Password:", "passwd"),
+                      ("Cloud IP:", "cloud"),
+                      ("Proxy IP:", "proxy"),
+                      ("Pool Size:", "pool"),
+                      ("Max Retry:", "retry"),
+                      ("Sign:", "sign"),
+                      ("Crypto:", "crypto"),
+                      ("Save To:", "root")]:
+        print(name, config.get(key, ""))
+    sys.exit()
+
+
 def cmd_get_config(choose):
     if isinstance(choose, dict) > 0:
         for key in ["user", "pwd", "cloud", "proxy", "crypto", "sign"]:
@@ -20,19 +36,6 @@ def cmd_get_config(choose):
         return config
 
     config = load_config("client")
-    if choose == "check":
-        print("Client default configures:")
-        for name, key in [("UserName:", "user"),
-                          ("Password:", "passwd"),
-                          ("Cloud IP:", "cloud"),
-                          ("Proxy IP:", "proxy"),
-                          ("Pool Size:", "pool"),
-                          ("Sign:", "sign"),
-                          ("Crypto:", "crypto"),
-                          ("Save To:", "root")]:
-            print(name, config.get(key, ""))
-        sys.exit()
-
     if choose == "default" and len(config) > 0:
         return config
     print("\nSetup default config for Client")
@@ -41,9 +44,10 @@ def cmd_get_config(choose):
     config["cloud"] = analysis_ip(input("3. Cloud service IP address [ip:port]: "))[0]
     config["proxy"] = analysis_ip(input("4. Forwarding Proxy service addresses [ip:port;ip;port;...]: "))
     config['pool'] = int(input("5. Maximum numer of concurrently transferring files: "))
-    config["sign"] = input("6. Sign transfering data (may slow down speed) [y|n]:").lower() == "y"
-    config["crypto"] = input("7. Encrypto transfering data (may slow down speed) [y|n]:").lower() == "y"
-    config["root"] = input("8. Default path to save files: ")
+    config["retry"] = int(input("6. Maximum number of retry connection: "))
+    config["sign"] = input("7. Sign transfering data (may slow down speed) [y|n]:").lower() == "y"
+    config["crypto"] = input("8. Encrypto transfering data (may slow down speed) [y|n]:").lower() == "y"
+    config["root"] = input("9. Default path to save files: ")
     return save_config("client", **config)
 
 
@@ -136,6 +140,7 @@ def download_gui():
                              proxy=analysis_ip(rspn[3]),
                              root=rspn[5],
                              pool=4,
+                             retry=5,
                              sign=True,
                              crypt=True)
         config["source"] = rspn[4]
