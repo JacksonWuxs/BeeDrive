@@ -11,9 +11,9 @@ try:
     except Exception:
         from crypto.Cipher import AES
         from crypto.Util.Padding import pad, unpad
-    HAS_AES = True
+    SUPPORT_AES = True
 except Exception:
-    HAS_AES = False
+    SUPPORT_AES = False
     import warnings
     warnings.warn("Crypto is not available, we cannot keep your data privacy!")
 

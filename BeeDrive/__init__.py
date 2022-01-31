@@ -9,10 +9,11 @@ Desc: Main file of BeeDrive Packages.
 """
 
 from . import cloud, client, proxy
+from .core.constant import VERSION, DATE
 
 
 __name__ = "BeeDrive"
-__version__ = "0.1.3.1"
-__date__ = 20220128
+__version__ = VERSION
+__date__ = DATE
 __author__ = "Xuansheng Wu"
 __update__ = "The first version of BeeDrive, including cloud, proxy, upload, and download."

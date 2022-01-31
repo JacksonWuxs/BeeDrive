@@ -14,15 +14,14 @@ GUI_CONFIG = dict(size=(7, 1), justification='right', text_color="black", backgr
 
 def cmd_check_config():
     config = load_config("client")
-    print("Client default configures:")
+    print("Client Default Configures:")
     for name, key in [("UserName:", "user"),
                       ("Password:", "passwd"),
                       ("Cloud IP:", "cloud"),
                       ("Proxy IP:", "proxy"),
                       ("Pool Size:", "pool"),
                       ("Max Retry:", "retry"),
-                      ("Sign:", "sign"),
-                      ("Crypto:", "crypto"),
+                      ("Encrypt:", "encrypt"),
                       ("Save To:", "root")]:
         print(name, config.get(key, ""))
     sys.exit()
@@ -30,7 +29,7 @@ def cmd_check_config():
 
 def cmd_get_config(choose):
     if isinstance(choose, dict) > 0:
-        for key in ["user", "pwd", "cloud", "proxy", "crypto", "sign"]:
+        for key in ["user", "pwd", "cloud", "proxy", "encrypt"]:
             if key not in choose:
                 raise ValueError("Custom config file isn't valid for client service.")
         return config
@@ -45,9 +44,8 @@ def cmd_get_config(choose):
     config["proxy"] = analysis_ip(input("4. Forwarding Proxy service addresses [ip:port;ip;port;...]: "))
     config['pool'] = int(input("5. Maximum numer of concurrently transferring files: "))
     config["retry"] = int(input("6. Maximum number of retry connection: "))
-    config["sign"] = input("7. Sign transfering data (may slow down speed) [y|n]:").lower() == "y"
-    config["crypto"] = input("8. Encrypto transfering data (may slow down speed) [y|n]:").lower() == "y"
-    config["root"] = input("9. Default path to save files: ")
+    config["encrypt"] = input("7. Encrypto transfering data (may slow down speed) [y|n]:").lower() == "y"
+    config["root"] = input("8. Default path to save files: ")
     return save_config("client", **config)
 
 
@@ -57,6 +55,8 @@ def gui_run(config, window, service):
     service = service.capitalize()
     while True:
         msg = manager.read()
+        if msg == Done:
+            break
         if not isinstance(msg, (str, bytes)):
             continue
 
@@ -101,9 +101,9 @@ def upload_gui():
                              cloud=analysis_ip(rspn[2])[0],
                              proxy=analysis_ip(rspn[3]),
                              pool=4,
+                             retry=5,
                              root=config.get("root", "./"),
-                             sign=True,
-                             crypto=True)
+                             encrypt=True)
         config["source"] = rspn["tgt"]
         if gui_run(config, window, "upload") in ("Cancel", None):
             break
@@ -135,16 +135,15 @@ def download_gui():
             continue
         config = save_config("client",
                              user=rspn[0],
-                             pwd=rspn[1],
+                             passwd=rspn[1],
                              cloud=analysis_ip(rspn[2])[0],
                              proxy=analysis_ip(rspn[3]),
-                             root=rspn[5],
+                             root=rspn["path"],
                              pool=4,
                              retry=5,
-                             sign=True,
-                             crypt=True)
+                             encrypt=True)
         config["source"] = rspn[4]
-        if gui_run(config, window, "upload") in ("Cancel", None):
+        if gui_run(config, window, "download") in ("Cancel", None):
             break
     window.close()
 

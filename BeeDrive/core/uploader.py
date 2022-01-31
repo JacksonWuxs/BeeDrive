@@ -5,13 +5,13 @@ from traceback import format_exc
 
 from .base import BaseClient, BaseWaiter
 from .encrypt import file_md5
-from .constant import TCP_BUFF_SIZE, DISK_BUFF_SIZE
+from .constant import TCP_BUFF_SIZE, DISK_BUFF_SIZE, STAGE_DONE, STAGE_FAIL
 from .logger import callback_info, callback_processbar, callback_flush, callback_error
 
 
 class UploadClient(BaseClient):
-    def __init__(self, user, psd, cloud, file, retry, crypto, sign, fold, proxy):
-        BaseClient.__init__(self, user, psd, cloud, 'upload', retry, crypto, sign, proxy)
+    def __init__(self, user, psd, cloud, file, retry, encrypt, fold, proxy):
+        BaseClient.__init__(self, user, psd, cloud, 'upload', retry, encrypt, proxy)
         self.fold = fold
         self.file = file
         self.percent = 0.0
@@ -41,7 +41,7 @@ class UploadClient(BaseClient):
             
         with open(self.file, 'rb') as f:
             f.seek(bkpnt)
-            while self.alive:
+            while self.isConn:
                 row = f.read(TCP_BUFF_SIZE)
                 if len(row) == 0:
                     break
@@ -59,15 +59,15 @@ class UploadClient(BaseClient):
             spent_time = max(0.001, time() - begin_time)
             self.percent = bkpnt / fsize if fsize > 0 else 1.0
             self.msg = callback_processbar(self.percent, task, fsize/spent_time, spent_time)
-        self.msg = self.recv().decode()
+        return eval(self.recv().decode())
             
 
 class UploadWaiter(BaseWaiter):
-    def __init__(self, peer, conn, root, passwd):
-        BaseWaiter.__init__(self, peer, 'file', conn, peer.name, passwd)
+    def __init__(self, user, passwd, root, task, conn, encrypt):
+        BaseWaiter.__init__(self, user, passwd, task, conn, encrypt)
         self.root = path.abspath(root)
         self.percent = 0.0
-        self.msg = ""
+        self.msg = "Preparing to recive file"
         self.start()
 
     def run(self):
@@ -79,7 +79,7 @@ class UploadWaiter(BaseWaiter):
             fpath = header['fold']
             fname = header['fname']
             fcode = header['fcode']
-            folder_path = path.abspath(path.join(self.root, self.peer.name, fpath))
+            folder_path = path.abspath(path.join(self.root, self.user, fpath))
 
             # create a folder if it doesn't exist
             if not path.isdir(folder_path):
@@ -92,8 +92,7 @@ class UploadWaiter(BaseWaiter):
             self.send(dumps({"size": current_size, "code": current_code}))
             bkpnt = int(self.recv())
             
-            mode = 'wb' if bkpnt == 0 else 'ab+'     
-            self.stage = STAGE_RUN
+            mode = 'wb' if bkpnt == 0 else 'ab+'   
             self.percent = bkpnt / fsize if fsize > 0 else 1.0
 
             # Now begin to recive file
@@ -104,7 +103,7 @@ class UploadWaiter(BaseWaiter):
                 while self.percent < 1.0:
                     text = self.recv()
                     if not text:
-                        callback_info("Breakout with timeout ERROR")
+                        callback_info("Connection is broken.")
                         break
                     f.write(text)
                     bkpnt += len(text)
@@ -117,5 +116,6 @@ class UploadWaiter(BaseWaiter):
             spent = max(0.001, time() - begin_time)
             progress = bkpnt/fsize if fsize > 0 else 1.0
             self.msg = callback_processbar(progress, task, bkpnt/spent, spent)
-            self.stage = STAGE_DONE if file_md5(fpath, bkpnt) == fcode else STAGE_FAIL
-            self.send(self.stage)
+            check = file_md5(fpath, bkpnt) == fcode
+            self.stage = STAGE_DONE if check else STAGE_FAIL
+            self.send(str(check))

@@ -11,8 +11,8 @@ END_PATTERN = b'___@@@___'
 TCP_BUFF_SIZE = 65535    # 64 KB
 DISK_BUFF_SIZE = 65535   # 64 KB
 
-__version__ = "0.1.0"
-__date__ = "2022.01.22"
+VERSION = "0.2.0a"
+DATE = 20220131
 
 DEATH = 0
 ALIVE = 1

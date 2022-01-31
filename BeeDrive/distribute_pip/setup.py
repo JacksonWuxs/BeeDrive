@@ -21,8 +21,8 @@ setuptools.setup(
     install_requires=['pycryptodome', 'PySimpleGUI'],
     package_dir={"": os.path.abspath("../../")},
     packages=setuptools.find_packages(where=os.path.abspath("../../"),
-                                      exclude=("distribute_exe",
-                                               "distribute_pip",)),
+                                      exclude=("../distribute_exe",
+                                               "../distribute_pip",)),
     license="GPL v3",
     classifiers=[
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',

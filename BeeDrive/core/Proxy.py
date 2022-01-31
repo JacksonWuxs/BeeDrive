@@ -14,16 +14,16 @@ class BaseProxyNode(Thread):
         self.daemon = True
         self.node = None
         self.routes = {}
-        self.alive = False
+        self.isConn = False
 
     def __enter__(self):
         self.build_server()
-        self.alive = True
+        self.isConn = True
 
     def __exit__(self, *args, **kwrds):
         self.remove_connect(self.node)
         self.node = None
-        self.alive = False
+        self.isConn = False
 
     @property
     def listen_sock(self):
@@ -33,7 +33,7 @@ class BaseProxyNode(Thread):
     def read_buff(self, sock):      
         try:
             history = b""
-            while True:
+            while self.isConn:
                 try:
                     message = sock.recv(TCP_BUFF_SIZE)
                 except OSError:
@@ -63,10 +63,10 @@ class BaseProxyNode(Thread):
             if sock in self.routes:
                 addr = self.routes.pop(sock)
                 del self.routes[addr]
-                callback_info("Connection %s has been removed" % addr.decode())
+                callback_info("Remove connection %s" % addr.decode())
 
     def stop(self):
-        self.alive = False
+        self.isConn = False
 
 
 class HostProxy(BaseProxyNode):
@@ -77,7 +77,7 @@ class HostProxy(BaseProxyNode):
     def run(self):
         with self:
             callback_info("Public Host Proxy is launched at port %d" % self.port)
-            while self.alive:
+            while self.isConn:
                 for sock in select(self.listen_sock, [], [])[0]:
                     try:
                         self.handle_one_request(sock)
@@ -155,9 +155,9 @@ class LocalRelay(BaseProxyNode):
 
     def run(self):
         with self:
-            while self.alive:
+            while self.isConn:
                 sockets = self.listen_sock
-                while len(sockets) == 0 and self.alive:
+                while len(sockets) == 0 and self.isConn:
                     callback_info("Trying to reconnect %s" % (self.master,))
                     for sock in self.routes:
                         if isinstance(sock, socket):
@@ -165,7 +165,7 @@ class LocalRelay(BaseProxyNode):
                     sleep(30)
                     self.build_server()
                     sockets = self.listen_sock
-                if not self.alive:
+                if not self.isConn:
                     break
                 for sock in select(sockets, [], [])[0]:
                     try:

@@ -16,8 +16,8 @@ WAITERS = {"upload": UploadWaiter, "download": DownloadWaiter}
 
 class ExistMessager(BaseClient):
     def __init__(self, port):
-        BaseClient.__init__(self, None, u"", ('127.0.0.1', port), 'exist',
-                            3, True, True, [])
+        BaseClient.__init__(self, 'xuansheng', u"", ('127.0.0.1', port), 'exist',
+                            3, False, [])
         self.start()
 
     def run(self):
@@ -31,8 +31,8 @@ class WorkerManager(BaseManager):
         self.work_dir = work_dir
         self.launch()
 
-    def launch_task(self, socket, info, task, passwd):
-        worker = WAITERS[task](info, socket, self.work_dir, passwd)
+    def launch_task(self, user, passwd, task, sock, root):
+        worker = WAITERS[task](user, passwd, root, task, sock, False)
         self.pool[worker.info.uuid] = worker
         self.send(worker.info.uuid)
 
@@ -55,15 +55,16 @@ class LocalServer(BaseServer):
         callback_info("Server has been launched at %s" % (self.target,))
         self.add_new_manager()
 
-    def add_new_task(self, client, passwd, info, task):
+    def add_new_task(self, user, passwd, task, sock, root):
         while True:
             for manager in self.managers:
                 if manager.echo(IsFull) is False:
                     uuid = manager.echo(NewTask,
-                                      socket=client,
-                                      info=info,
-                                      task=task,
-                                      passwd=passwd)
+                                        user=user,
+                                        passwd=passwd,
+                                        task=task,
+                                        sock=sock,
+                                        root=root)
                     return
                 
             self.add_new_manager()
@@ -79,15 +80,14 @@ class LocalServer(BaseServer):
 
     def run(self):
         with self:
-            while self._work.isSet():
-                client, passwd, info, task = self.accept_connect()
-                if task == 'exist':
-                    self.close()
-                if client is not None:
-                    self.add_new_task(client, passwd, info, task)
+            while self.isConn:
+                task, user, protocol, sock = self.accept_connect()
+                if task == "exist":
+                    break
+                elif task is not None:
+                    self.add_new_task(user, self.users[user], task, sock, self.workdir)
 
     def stop(self):
-        self._work.clear()
         exits = ExistMessager(self.port)
         for manager in self.managers:
             manager.join_do(Stop)

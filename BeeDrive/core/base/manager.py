@@ -37,7 +37,7 @@ class BaseManager(multiprocessing.Process):
         self.pool_size = pool_size
         self.pool = {}
         self.live_workers = 0
-        self.alive = False
+        self.isRun = False
 
     @classmethod
     def get_controller(cls, *args, **kwrds):
@@ -55,9 +55,11 @@ class BaseManager(multiprocessing.Process):
         self.start()
 
     def pool_is_full(self):
+        self.update_worker_status()
         return len(self.pool) == self.pool_size
 
     def pool_is_empty(self):
+        self.update_worker_status()
         return len(self.pool) == 0
         
     def recv(self):
@@ -69,7 +71,8 @@ class BaseManager(multiprocessing.Process):
             return {"cmd": Stop}
 
     def run(self):
-        while self.alive:
+        self.isRun = True
+        while self.isRun:
             parameters = self.recv()
             if not isinstance(parameters, dict):
                 continue
@@ -78,17 +81,20 @@ class BaseManager(multiprocessing.Process):
             if cmd == IsFull:
                 self.send(self.pool_is_full())
                 
-            if cmd == Update:
+            elif cmd == Update:
                 self.send(self.update_worker_status())
 
-            if cmd == NewTask:
+            elif cmd == NewTask:
                 self.launch_task(**parameters)
 
-            if cmd == KillTask:
+            elif cmd == KillTask:
                 self.kill_task()
 
-            if cmd == Stop:
+            elif cmd == Stop:
                  self.stop()
+
+            else:
+                self.send({"ERROR": "Unknow command '%s'" % cmd})
                  
     def send(self, info):
         try:
@@ -99,7 +105,7 @@ class BaseManager(multiprocessing.Process):
     def stop(self):
         self.alive = False
         for worker in self.pool.values():
-            if worker.alive:
+            if worker.isAlive:
                 try:
                     worker.stop()
                 except Exception:
@@ -107,15 +113,15 @@ class BaseManager(multiprocessing.Process):
         self.send(Done)
 
     def update_worker_status(self):
-        subject_status = []
-        for uuid, subject in self.pool.items():
-            state = 1 if subject.is_alive() else 0            
-            subject_status.append((uuid, state, subject.stage, subject.percent, subject.msg))
-        for uuid, status, _, _, _ in subject_status:
-            if status == DEATH:
+        worker_status = []
+        for uuid, worker in self.pool.items():
+            info = (uuid, worker.isAlive(), worker.isConn, worker.percent, worker.msg)         
+            worker_status.append(info)
+        for uuid, alive, _, _, _ in worker_status:
+            if alive is False:
                 del self.pool[uuid]
         self.live_workers = len(self.pool)
-        return subject_status
+        return worker_status
 
     def launch_task(self, **kwrds):
         raise NotImplemented("please rewrite this function later")
