@@ -3,30 +3,32 @@ import time
 
 from .idcard import IDCard
 from .worker import BaseWorker
-from ..utils import build_connect
+from ..utils import build_connect, disconnect
 from ..logger import callback_info
-from ..encrypt import HAS_AES
-from ..constant import END_PATTERN, TCP_BUFF_SIZE
+from ..encrypt import SUPPORT_AES, AESCoder
+from ..constant import END_PATTERN, TCP_BUFF_SIZE, VERSION
 from ..constant import (STAGE_INIT, STAGE_PRE, STAGE_RUN,
                         STAGE_DONE, STAGE_FAIL, STAGE_RETRY)
 
 
 class BaseClient(BaseWorker):
-    def __init__(self, name, psd, target, task, retry, crypto, signature, proxy):
+    def __init__(self, user, passwd, target, task, retry, encrypt, proxy):
         self.msg = self.stage = STAGE_INIT
-        BaseWorker.__init__(self, name, psd, None, crypto, signature)
+        BaseWorker.__init__(self, None, encrypt)
         self.proxy = [] if proxy is None else proxy
+        self.user = user
+        self.passwd = passwd
         self.target = target
         self.task = task
         self.max_retry = retry
         self.peer = None
         
- 
     def __enter__(self):
         self.msg = "Connecting to cloud"
-        self.build_connect()
-        self.build_pipeline()
-        self.verify_connect()
+        self.socket = self.build_connect()
+        if self.socket:
+            self.build_pipeline(self.passwd)
+            self.verify_connect()
         if self.peer:
             self.active()
 
@@ -40,45 +42,34 @@ class BaseClient(BaseWorker):
         # connect the server
         for ip, port in [self.target] + self.proxy:
             # try to connect target
-            self.socket = build_connect(ip, port)
-            if isinstance(self.socket, str):
+            conn = build_connect(ip, port)
+            if isinstance(conn, str):
                 continue
             
             # whether connect to the proxy or not
             if (ip, port) != self.target:
+                self.socket = conn
                 source = self.info.code #str(self.socket.getsockname())
                 # makesure the proxy node has target ip
-                self.socket.sendall(('Proxy:%s$%s$' % (str(self.target), source)).encode() + END_PATTERN)
-                rspn = self.socket.recv(TCP_BUFF_SIZE)
+                conn.sendall(('Proxy:%s$%s$' % (str(self.target), source)).encode() + END_PATTERN)
+                rspn = conn.recv(TCP_BUFF_SIZE)
                 if rspn != b"TRUE":
                     continue
                 callback_info('- using proxy %s:%s to connect target %s:%d' % (ip, port, self.target[0], self.target[1]))
                 self.use_proxy = True
-            return
+            return conn
         
         self.msg = u"Error: Cannot connect to %s" % (self.target,)
-        self.stage = STAGE_FAIL
-        raise TimeoutError('cannot find out the target "%s"' % (self.target,))
+        callback_info(self.msg)
+        return conn
 
     def verify_connect(self):
-        if self.stage == STAGE_FAIL:
-            return STAGE_FAIL
-        
-        welcome = self.socket.recv(1024).replace(END_PATTERN, b"")
-        if not (welcome.startswith(b"Welcome to use BeeDrive-") and \
-                welcome.endswith(b', please login !')):
-            self.msg = u"Cannot connect to %s" % (self.target,)
-            self.stage = STAGE_FAIL
-            return STAGE_FAIL
-            
         # speak out who am I and what I need
-        header = pickle.dumps(self.info.info)
-        header = {"user": self.info.name,
-                  "task": self.task,
-                  "info": self.aescoder.encrypt(header) if HAS_AES else header,
-                  "text": not HAS_AES}
-
-        header = pickle.dumps(header)
+        header = ("%s %s BEE/%s\r\n" % (self.task.lower(), self.user, VERSION)).encode("utf8")
+        info = pickle.dumps(self.info.info)
+        if SUPPORT_AES:
+            info = AESCoder(self.passwd).encrypt(info)
+        header += pickle.dumps({"info": info, "text": not SUPPORT_AES})
         if self.use_proxy:
             target = str(self.target).encode("utf8")
             source = self.info.code.encode("utf8")
@@ -88,14 +79,13 @@ class BaseClient(BaseWorker):
         # makesure the request is confirmed
         try:
             rspn = self.recv()
-            if rspn.startswith(b"Error"):
-                raise Exception(rspn.decode().split(" ", 1)[1])
-
+            if rspn.startswith(b"ERROR"):
+                callback_info(rspn.decode())
+                disconnect(self.socket)
+                return
             self.peer = pickle.loads(rspn)
-            if self.peer['code'] != IDCard(self.peer['uuid'], self.peer['name'],
-                                      self.peer['mac'], self.peer['crypto'],
-                                      self.peer['sign']).code:
-                self.peer = None           
+            if self.peer['code'] != IDCard(self.peer['uuid'], self.peer['mac'], self.peer['encrypt']).code:
+                self.peer = None
         except Exception as e:
             self.peer = None
 
@@ -105,16 +95,19 @@ class BaseClient(BaseWorker):
         for retry in range(1, 1 + self.max_retry):
             with self:
                 try:
-                    self.stage = STAGE_RUN
-                    self.process(**kwrds)
-                    self.stage = STAGE_DONE
-                    return
+                    if self.peer:
+                        self.stage = STAGE_RUN
+                        self.process(**kwrds)
+                        self.stage = STAGE_DONE
+                        return
                 except ConnectionResetError:
                     pass
                 except ConnectionAbortedError:
                     pass
+                except TimeoutError:
+                    pass
             if retry <= self.max_retry:
-                wait = 1.0 + 15 * retry # 15 seconds per retry
+                wait = 10 * retry # 15 seconds per retry
                 self.stage = STAGE_RETRY
                 self.msg = "Retry connection in %d seconds" % wait
                 callback_info("Retry connection in %d seconds" % wait)

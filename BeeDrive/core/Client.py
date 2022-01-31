@@ -21,18 +21,18 @@ class ClientManager(BaseManager):
         elif task == "upload":
             self.upload(**kwrds)
 
-    def download(self, user, passwd, cloud, source, root, retry, crypto, sign, proxy, **kwrds):
+    def download(self, user, passwd, cloud, source, root, retry, encrypt, proxy, **kwrds):
         if isinstance(source, str):
             source = [source]
         for i, file in enumerate(source):
             self.wait_until_free(i, len(source))
-            client = DownloadClient(user, passwd, cloud, file, root, retry, crypto, sign, proxy)
+            client = DownloadClient(user, passwd, cloud, file, root, retry, encrypt, proxy)
             self.pool[client.info.uuid] = client
             self.update_worker_status()
         self.wait_until_empty(i, len(source))
         self.send(Done)
 
-    def upload(self, user, passwd, cloud, source, retry, crypto, sign, proxy, **kwrds):
+    def upload(self, user, passwd, cloud, source, retry, encrypt, proxy, **kwrds):
         source = os.path.abspath(source)
         root = os.path.abspath(os.path.join(os.path.split(source)[0]))
         files = list_files(source)
@@ -41,7 +41,7 @@ class ClientManager(BaseManager):
             fold = os.path.abspath(os.path.split(file)[0]).replace(root, "")
             if len(fold) > 0 and ord(fold[0]) == 92:
                 fold = fold[1:]
-            client = UploadClient(user, passwd, cloud, file, retry, crypto, sign, fold, proxy)
+            client = UploadClient(user, passwd, cloud, file, retry, encrypt, fold, proxy)
             self.pool[client.info.uuid] = client
             self.update_worker_status()
         self.wait_until_empty(i, len(files))

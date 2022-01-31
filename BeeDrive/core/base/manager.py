@@ -110,8 +110,8 @@ class BaseManager(multiprocessing.Process):
         subject_status = []
         for uuid, subject in self.pool.items():
             state = 1 if subject.is_alive() else 0            
-            subject_status.append((uuid, state, subject.stage, subject.percent, subject.msg))
-        for uuid, status, _, _, _ in subject_status:
+            subject_status.append((uuid, state, subject.percent, subject.msg))
+        for uuid, status, _, _ in subject_status:
             if status == DEATH:
                 del self.pool[uuid]
         self.live_workers = len(self.pool)

@@ -9,8 +9,8 @@ from .logger import callback_info, callback_processbar, callback_flush
 
 
 class DownloadClient(BaseClient):
-    def __init__(self, user, psd, cloud, file, root, retry, crypto, sign, proxy):
-        BaseClient.__init__(self, user, psd, cloud, 'download', retry, crypto, sign, proxy)
+    def __init__(self, user, psd, cloud, file, root, retry, encrypt, proxy):
+        BaseClient.__init__(self, user, psd, cloud, 'download', retry, encrypt, proxy)
         self.root = path.abspath(root)
         self.fold = path.split(file)[0]
         self.file = file
@@ -57,16 +57,16 @@ class DownloadClient(BaseClient):
         self.percent = bkpnt / fsize
         self.send(b"ready")
         with open(local_file, mode, DISK_BUFF_SIZE) as f:
-            while self.alive and self.percent < 1:
+            while self.isConn and self.percent < 1:
                 text = self.recv()
                 if not text:
                     break
                 
                 f.write(text)
                 bkpnt += len(text)
+                self.percent = bkpnt / fsize
                 if time() - last_time >= update_wait:
                     update_wait = 0.1
-                    self.percent = bkpnt / fsize
                     spent = max(0.001, time() - begin_time)
                     self.msg = callback_processbar(self.percent, fname, bkpnt/spent, spent)
 
@@ -84,11 +84,11 @@ class DownloadClient(BaseClient):
     
 
 class DownloadWaiter(BaseWaiter):
-    def __init__(self, peer, conn, root, passwd):
-        BaseWaiter.__init__(self, peer, 'file', conn, peer.name, passwd)
-        self.root = path.join(path.abspath(root), peer.name)
+    def __init__(self, user, passwd, root, task, conn, encrypt):
+        BaseWaiter.__init__(self, user, passwd, task, conn, encrypt)
+        self.root = path.join(path.abspath(root), user)
         self.percent = 0.0
-        self.msg = "Preparing to recive file"
+        self.msg = "Preparing to send file"
         self.start()
 
     def run(self):
@@ -107,7 +107,6 @@ class DownloadWaiter(BaseWaiter):
                 callback_info("%s is trying to visit file %s without authorization!" % (self.info, fname))
                 self.msg = "%s is trying to visit file %s without authorization!" % (self.info, fname)
                 self.stage = STAGE_FAIL
-                self.stop()
                 return
 
             # check wether the target file is exist
@@ -116,7 +115,6 @@ class DownloadWaiter(BaseWaiter):
                 callback_info("File %s is not found!" % fname)
                 self.msg = "File %s is not found!" % fname
                 self.stage = STAGE_FAIL
-                self.stop()
                 return
             
             local_size = path.getsize(local_file)
@@ -139,7 +137,7 @@ class DownloadWaiter(BaseWaiter):
             
             with open(local_file, "rb") as f:
                 f.seek(bkpnt)
-                while self.alive:
+                while self.isConn:
                     row = f.read(TCP_BUFF_SIZE)
                     if len(row) == 0:
                         break

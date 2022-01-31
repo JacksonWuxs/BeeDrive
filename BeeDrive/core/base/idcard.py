@@ -6,13 +6,11 @@ class IDCard:
 
     __slot__ = ['info']
     
-    def __init__(self, uuid, name, mac, crypto, sign):
-        src_code = u"".join(map(str, (uuid, name, mac, crypto, sign))).encode()
+    def __init__(self, uuid, mac, encrypt):
+        src_code = u"".join(map(str, (uuid, mac, encrypt))).encode()
         self.info = {'uuid': uuid,     # unique id of the current Thread
-                     'name': name,     # Who am I
                      'mac': mac,       # MAC address of the current hardware
-                     'crypto': crypto, # whether crypto data or not
-                     'sign': sign,     # whether sign the document or not
+                     'encrypt': encrypt,
                      'code': md5_encode(src_code)}
 
     def __repr__(self):
@@ -28,6 +26,6 @@ class IDCard:
         self.info = pkl
 
     @classmethod
-    def create(cls, name, crypto, sign):
-        return cls(get_uuid(), name, get_mac(), crypto, sign)
+    def create(cls, encrypt):
+        return cls(get_uuid(), get_mac(), encrypt)
         

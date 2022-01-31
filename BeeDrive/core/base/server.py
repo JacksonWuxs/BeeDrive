@@ -5,8 +5,8 @@ from os import path
 from .idcard import IDCard
 from .worker import BaseWorker
 from ..logger import callback_error
-from ..constant import END_PATTERN, TCP_BUFF_SIZE, __version__
-from ..encrypt import AESCoder, HAS_AES
+from ..constant import END_PATTERN, TCP_BUFF_SIZE
+from ..encrypt import AESCoder, SUPPORT_AES
 from ..utils import disconnect
 
 
@@ -16,8 +16,9 @@ class BaseServer(BaseWorker):
         self.port = port
         self.users = dict(users)
         assert all(map(lambda x: isinstance(x, str), self.users.values())), "Users' password must be str"
-        assert len(self.users) == len(users), "Users name are duplicated"
-        BaseWorker.__init__(self, users[0][0], users[0][1])
+        assert len(self.users) == len(users), "Users name are duplicated."
+        assert all(map(lambda x: u" " not in x, self.users)), "User name not allowed ' ' blank inside."
+        BaseWorker.__init__(self, None, False)
         
     def build_server(self, max_connect):
         self.socket.bind((self.host, self.port))
@@ -25,64 +26,30 @@ class BaseServer(BaseWorker):
 
     def accept_connect(self):
         # accept a new connection and welcome
-        socket, addr = self.socket.accept()
-        socket.sendall(b"Welcome to use BeeDrive-%s, please login !%s" % (__version__.encode(), END_PATTERN))
-
-        # verify user authorization
-        header = self.verify_authorize_header(socket)
-        if not header:
-            disconnect(socket)
-            return None, None, None, None
-        
-        # identify ID information of the client
-        info = IDCard(header['uuid'], header['name'],
-                      header['mac'], header['crypto'],
-                      header['sign'])
-
-        # ID information has been modified
-        if info.code != header['code']:
-            callback_error('You are under attacked', 6)
-            disconnect(socket)
-            return None, None, None, None
-        return socket, self.users[header['name']], info, header['task']
-
-    def verify_authorize_header(self, socket):
+        socket = self.socket.accept()[0]
+        task, user, proto = self.parse_line(socket, 128)
+        return task, user, proto, socket
+    
+    def parse_line(self, sock, max_len):
+        line = b""
+        sock.settimeout(0.01)
         try:
-            socket.settimeout(30)
-            head = socket.recv(TCP_BUFF_SIZE)
-            socket.settimeout(None)
-            if head.endswith(END_PATTERN):
-                head = head[:-len(END_PATTERN)]
-        except ConnectionResetError:
-            return
-        
-        try:
-            head = pickle.loads(head)
-            assert isinstance(head ,dict) and len(head) == 4
-            for key in ["user", "task", "info", "text"]:
-                assert key in head
+            for i in range(max_len):
+                line += sock.recv(1)
+                if line.endswith(b"\r\n"):
+                    break
+
+            line = line.strip().decode("utf8").split(" ")
+            if len(line) != 3:
+                disconnect(sock)
+                return None, None, None
+            if line[1] not in self.users:
+                sock.sendall(b"ERROR: User name is incorrect.")
+                return None, None, None
+            sock.settimeout(None)
+            return line
         except Exception:
-            return
-        
-        if head["user"] not in self.users:
-            socket.sendall(("Error: `%s` is not a legal user name" % head["user"]).encode() + END_PATTERN)
-            return
-        
-        try:
-            decoded_head = head["info"]
-            if not head["text"]:
-                if not HAS_AES:
-                    callback_error("Server doesn't support AES encryption.", 0)
-                    socket.sendall(b"Error: Server doesn't support encryption." + END_PATTERN)
-                    return 
-                tmp_encoder = AESCoder(self.users[head["user"]])
-                decoded_head = tmp_encoder.decrypt(decoded_head)
-            head.update(pickle.loads(decoded_head))
-            for key in ["uuid", "name", "mac", "crypto", "sign"]:
-                assert key in head
-        except Exception as e:
-            socket.sendall(b"Error: Password is incorrect!" + END_PATTERN)
-            return
-        return head
-
+            disconnect(sock)
+            return None, None, None
+            
         

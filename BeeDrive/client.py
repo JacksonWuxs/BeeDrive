@@ -21,8 +21,7 @@ def cmd_check_config():
                       ("Proxy IP:", "proxy"),
                       ("Pool Size:", "pool"),
                       ("Max Retry:", "retry"),
-                      ("Sign:", "sign"),
-                      ("Crypto:", "crypto"),
+                      ("Encrypt:", "encrypt"),
                       ("Save To:", "root")]:
         print(name, config.get(key, ""))
     sys.exit()
@@ -30,7 +29,7 @@ def cmd_check_config():
 
 def cmd_get_config(choose):
     if isinstance(choose, dict) > 0:
-        for key in ["user", "pwd", "cloud", "proxy", "crypto", "sign"]:
+        for key in ["user", "pwd", "cloud", "proxy", "encrypt"]:
             if key not in choose:
                 raise ValueError("Custom config file isn't valid for client service.")
         return config
@@ -45,9 +44,8 @@ def cmd_get_config(choose):
     config["proxy"] = analysis_ip(input("4. Forwarding Proxy service addresses [ip:port;ip;port;...]: "))
     config['pool'] = int(input("5. Maximum numer of concurrently transferring files: "))
     config["retry"] = int(input("6. Maximum number of retry connection: "))
-    config["sign"] = input("7. Sign transfering data (may slow down speed) [y|n]:").lower() == "y"
-    config["crypto"] = input("8. Encrypto transfering data (may slow down speed) [y|n]:").lower() == "y"
-    config["root"] = input("9. Default path to save files: ")
+    config["encrypt"] = input("7. Encrypto transfering data (may slow down speed) [y|n]:").lower() == "y"
+    config["root"] = input("8. Default path to save files: ")
     return save_config("client", **config)
 
 
