@@ -14,7 +14,7 @@ GUI_CONFIG = dict(size=(7, 1), justification='right', text_color="black", backgr
 
 def cmd_check_config():
     config = load_config("client")
-    print("Client default configures:")
+    print("Client Default Configures:")
     for name, key in [("UserName:", "user"),
                       ("Password:", "passwd"),
                       ("Cloud IP:", "cloud"),
@@ -55,6 +55,8 @@ def gui_run(config, window, service):
     service = service.capitalize()
     while True:
         msg = manager.read()
+        if msg == Done:
+            break
         if not isinstance(msg, (str, bytes)):
             continue
 
@@ -99,9 +101,9 @@ def upload_gui():
                              cloud=analysis_ip(rspn[2])[0],
                              proxy=analysis_ip(rspn[3]),
                              pool=4,
+                             retry=5,
                              root=config.get("root", "./"),
-                             sign=True,
-                             crypto=True)
+                             encrypt=True)
         config["source"] = rspn["tgt"]
         if gui_run(config, window, "upload") in ("Cancel", None):
             break
@@ -133,16 +135,15 @@ def download_gui():
             continue
         config = save_config("client",
                              user=rspn[0],
-                             pwd=rspn[1],
+                             passwd=rspn[1],
                              cloud=analysis_ip(rspn[2])[0],
                              proxy=analysis_ip(rspn[3]),
-                             root=rspn[5],
+                             root=rspn["path"],
                              pool=4,
                              retry=5,
-                             sign=True,
-                             crypt=True)
+                             encrypt=True)
         config["source"] = rspn[4]
-        if gui_run(config, window, "upload") in ("Cancel", None):
+        if gui_run(config, window, "download") in ("Cancel", None):
             break
     window.close()
 

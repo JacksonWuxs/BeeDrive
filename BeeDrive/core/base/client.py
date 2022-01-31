@@ -48,7 +48,6 @@ class BaseClient(BaseWorker):
             
             # whether connect to the proxy or not
             if (ip, port) != self.target:
-                self.socket = conn
                 source = self.info.code #str(self.socket.getsockname())
                 # makesure the proxy node has target ip
                 conn.sendall(('Proxy:%s$%s$' % (str(self.target), source)).encode() + END_PATTERN)
@@ -59,9 +58,9 @@ class BaseClient(BaseWorker):
                 self.use_proxy = True
             return conn
         
-        self.msg = u"Error: Cannot connect to %s" % (self.target,)
+        self.msg = u"Error: cannot find out target %s:%s" % self.target
         callback_info(self.msg)
-        return conn
+        return False
 
     def verify_connect(self):
         # speak out who am I and what I need
@@ -78,12 +77,13 @@ class BaseClient(BaseWorker):
         
         # makesure the request is confirmed
         try:
-            rspn = self.recv()
+            rspn = self.socket.recv(1024)
             if rspn.startswith(b"ERROR"):
                 callback_info(rspn.decode())
                 disconnect(self.socket)
                 return
-            self.peer = pickle.loads(rspn)
+            rspn = rspn.replace(END_PATTERN, b"")
+            self.peer = pickle.loads(self.reciver(rspn))
             if self.peer['code'] != IDCard(self.peer['uuid'], self.peer['mac'], self.peer['encrypt']).code:
                 self.peer = None
         except Exception as e:
@@ -97,19 +97,18 @@ class BaseClient(BaseWorker):
                 try:
                     if self.peer:
                         self.stage = STAGE_RUN
-                        self.process(**kwrds)
-                        self.stage = STAGE_DONE
-                        return
+                        if self.process(**kwrds) is True:
+                            self.stage = STAGE_DONE
+                            return
                 except ConnectionResetError:
                     pass
                 except ConnectionAbortedError:
                     pass
                 except TimeoutError:
                     pass
-            if retry <= self.max_retry:
-                wait = 10 * retry # 15 seconds per retry
-                self.stage = STAGE_RETRY
-                self.msg = "Retry connection in %d seconds" % wait
-                callback_info("Retry connection in %d seconds" % wait)
-                time.sleep(wait)
+            wait = 10 * retry # add 10 seconds per retry
+            self.stage = STAGE_RETRY
+            self.msg = "Retry connection in %d seconds" % wait
+            callback_info("Retry connection in %d seconds" % wait)
+            time.sleep(wait)
         self.stage = STAGE_FAIL

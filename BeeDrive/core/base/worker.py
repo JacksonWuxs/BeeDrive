@@ -1,11 +1,12 @@
 import re
 import threading
 import socket
+import traceback
 
 from .idcard import IDCard
 from ..encrypt import AESCoder, MD5Coder, SUPPORT_AES
 from ..utils import clean_coder, base_coder, disconnect
-from ..logger import callback_error, callback_flush
+from ..logger import callback_info, callback_flush
 from ..constant import END_PATTERN, TCP_BUFF_SIZE, STAGE_INIT, DISK_BUFF_SIZE
 
 
@@ -29,10 +30,12 @@ class BaseWorker(threading.Thread):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         disconnect(self.socket)
+        callback_flush()
         self.history = b""
         self.isConn = False
         self.socket = None
-        callback_flush()
+        if exc_type is not None:
+            callback_info("ERROR: Captured Error --> \n %s" % (traceback.format_exc()))
 
     def active(self):
         assert self.socket is not None

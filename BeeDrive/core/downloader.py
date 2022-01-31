@@ -74,13 +74,14 @@ class DownloadClient(BaseClient):
         bkpnt = path.getsize(local_file)
         spent = max(0.001, time() - begin_time)
         self.msg = callback_processbar(bkpnt/fsize, task, bkpnt/spent, spent)
-        check = file_md5(local_file, bkpnt)
-        if check == fcode:
+        check = file_md5(local_file, bkpnt) == fcode
+        if check:
             self.send(STAGE_DONE)
             self.msg = "File has been received"
         else:
             self.send(STAGE_FAIL)
-            self.msg = "Error: File is incorrect"
+            self.msg = "ERROR: File is incorrect"
+        return check
     
 
 class DownloadWaiter(BaseWaiter):

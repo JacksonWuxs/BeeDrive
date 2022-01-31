@@ -59,7 +59,7 @@ class UploadClient(BaseClient):
             spent_time = max(0.001, time() - begin_time)
             self.percent = bkpnt / fsize if fsize > 0 else 1.0
             self.msg = callback_processbar(self.percent, task, fsize/spent_time, spent_time)
-        self.msg = self.recv().decode()
+        return eval(self.recv().decode())
             
 
 class UploadWaiter(BaseWaiter):
@@ -74,7 +74,7 @@ class UploadWaiter(BaseWaiter):
         with self:
             # detail information of task
             self.msg = "Collecting file information"
-            header = loads(self.recv()); print(header)
+            header = loads(self.recv())
             fsize = header['fsize']
             fpath = header['fold']
             fname = header['fname']
@@ -103,7 +103,7 @@ class UploadWaiter(BaseWaiter):
                 while self.percent < 1.0:
                     text = self.recv()
                     if not text:
-                        callback_info("Breakout with timeout ERROR")
+                        callback_info("Connection is broken.")
                         break
                     f.write(text)
                     bkpnt += len(text)
@@ -116,5 +116,6 @@ class UploadWaiter(BaseWaiter):
             spent = max(0.001, time() - begin_time)
             progress = bkpnt/fsize if fsize > 0 else 1.0
             self.msg = callback_processbar(progress, task, bkpnt/spent, spent)
-            self.stage = STAGE_DONE if file_md5(fpath, bkpnt) == fcode else STAGE_FAIL
-            self.send(self.stage)
+            check = file_md5(fpath, bkpnt) == fcode
+            self.stage = STAGE_DONE if check else STAGE_FAIL
+            self.send(str(check))

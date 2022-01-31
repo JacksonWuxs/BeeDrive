@@ -47,22 +47,22 @@ class ClientManager(BaseManager):
         self.wait_until_empty(i, len(files))
         self.send(Done)
 
-    def wait_until_free(self, finished, num_tasks):
+    def wait_until_free(self, done, total):
         while self.pool_is_full():
             time.sleep(0.01)
             self.update_worker_status()
-            self.send("  Done: %d/%d | Working: %d" % (finished - self.live_workers,
-                                                     num_tasks, self.live_workers))
+            running = self.live_workers
+            self.send("  Done: %d/%d | Working: %d" % (done - running, total, running))
 
-    def wait_until_empty(self, finished, num_tasks):
+    def wait_until_empty(self, done, total):
         if len(self.pool) == 1:
             worker = list(self.pool.values())[0]
-            while worker.stage not in (STAGE_DONE, STAGE_FAIL):
-                time.sleep(0.2)
+            while worker.isAlive():
+                time.sleep(0.1)
                 self.send(worker.msg)
         else:
             while not self.pool_is_empty():
-                time.sleep(0.2)
+                time.sleep(0.1)
                 self.update_worker_status()
-                self.send("  Done: %d/%d | Working: %d" % (finished - self.live_workers,
-                                                         num_tasks, self.live_workers))
+                running = self.live_workers
+                self.send("  Done: %d/%d | Working: %d" % (done - running, total, running))

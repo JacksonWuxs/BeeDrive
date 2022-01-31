@@ -3,7 +3,7 @@ import pickle
 from .worker import BaseWorker
 from .idcard import IDCard
 from ..utils import disconnect
-from ..constant import TCP_BUFF_SIZE
+from ..constant import TCP_BUFF_SIZE, END_PATTERN
 from ..encrypt import SUPPORT_AES, AESCoder
 
         
@@ -17,7 +17,8 @@ class BaseWaiter(BaseWorker):
 
     def __enter__(self):
         self.build_socket()
-        if self.verify_connect():
+        self.peer = self.verify_connect()
+        if self.peer:
             self.active()
 
     def verify_connect(self):
@@ -31,34 +32,26 @@ class BaseWaiter(BaseWorker):
             disconnect(self.socket)
             return False
 
-        self.peer = head["info"]
+        peer = head["info"]
         if not head["text"]:
             if not SUPPORT_AES:
                 self.socket.sendall(b"ERROR: Current server doesn't support encryption.")
-                self.socket.close()
-                return False
+                return 
             try:
                 encoder = AESCoder(self.passwd)
-                self.peer = encoder.decrypt(self.peer)
-                self.peer = pickle.loads(self.peer)
+                peer = encoder.decrypt(peer)
+                peer = pickle.loads(peer)
                 for key in ["uuid", "mac", "encrypt"]:
-                    assert key in self.peer
+                    assert key in peer
             except Exception:
                 self.socket.sendall(b"ERROR: Password is incorrect.")
-                self.socket.close()
-                return False
-
-        card = IDCard(self.peer["uuid"], self.peer["mac"], self.peer["encrypt"])
-        if card.code != self.peer["code"]:
+                return 
+            
+        card = IDCard(peer["uuid"], peer["mac"], peer["encrypt"])
+        if card.code != peer["code"]:
             disconnect(self.socket)
             return False
-        self.info = IDCard(self.info.uuid, self.info.mac, self.peer["encrypt"])
+        self.info = IDCard(self.info.uuid, self.info.mac, peer["encrypt"])
         self.build_pipeline(self.passwd)
         self.send(pickle.dumps(self.info.info))
-        self.peer = card
-        return self.peer
-                
-                
-            
-
-        
+        return card      
