@@ -8,10 +8,12 @@ from .constant import IsFull, NewTask, KillTask, Update, Stop, ALIVE
 from .utils import build_connect
 from .uploader import UploadWaiter
 from .downloader import DownloadWaiter
+from .http import GetWaiter
 from .logger import callback_info, callback_flush
 
 
-WAITERS = {"upload": UploadWaiter, "download": DownloadWaiter}
+WAITERS = {"upload": UploadWaiter, "download": DownloadWaiter,
+           "get": GetWaiter, "post": GetWaiter}
 
 
 class ExistMessager(BaseClient):
@@ -32,6 +34,7 @@ class WorkerManager(BaseManager):
         self.launch()
 
     def launch_task(self, user, passwd, task, sock, root):
+        task = task.lower()
         worker = WAITERS[task](user, passwd, root, task, sock, False)
         self.pool[worker.info.uuid] = worker
         self.send(worker.info.uuid)
@@ -84,8 +87,9 @@ class LocalServer(BaseServer):
                 task, user, protocol, sock = self.accept_connect()
                 if task == "exist":
                     break
-                elif task is not None:
-                    self.add_new_task(user, self.users[user], task, sock, self.workdir)
+                elif task and protocol:
+                    self.add_new_task(user, self.users.get(user),
+                                      task, sock, self.workdir)
 
     def stop(self):
         exits = ExistMessager(self.port)
