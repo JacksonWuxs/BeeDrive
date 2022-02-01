@@ -38,12 +38,12 @@ class BaseServer(BaseWorker):
                 line += sock.recv(1)
                 if line.endswith(b"\r\n"):
                     break
-
-            line = line.strip().decode("utf8").split(" ")
-            if len(line) != 3:
+            
+            check = b"".join(line).strip().decode("utf8").split(" ")
+            if len(check) != 3:
                 disconnect(sock)
                 return None, None, None
-            if line[1] not in self.users:
+            if check[2].startswith("BEE") and line[1] not in self.users:
                 sock.sendall(b"ERROR: User name is incorrect.")
                 return None, None, None
             sock.settimeout(None)
