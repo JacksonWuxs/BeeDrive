@@ -1,25 +1,60 @@
 import pickle
+import re
 
 from .worker import BaseWorker
 from .idcard import IDCard
 from ..utils import disconnect
 from ..constant import TCP_BUFF_SIZE, END_PATTERN
 from ..encrypt import SUPPORT_AES, AESCoder
+from ..logger import callback_info
+
+
+LOGIN = re.compile("/\?user=(.*)&passwd=(.*)")
+DOWNLOAD = re.compile("/?cookie=(.*)&file=(.*)")
 
         
 class BaseWaiter(BaseWorker):
-    def __init__(self, user, passwd, task, conn, encrypt):
-        BaseWorker.__init__(self, conn, encrypt)
-        self.user = user
-        self.passwd = passwd
+    def __init__(self, infos, proto, token, task, conn):
+        BaseWorker.__init__(self, conn, False)
+        self.userinfo = infos
+        self.proto = proto
+        self.token = token
         self.task = task
+        self.user = None
+        self.passwd = None
         self.peer = None
 
     def __enter__(self):
-        self.build_socket()
-        self.peer = self.verify_connect()
-        if self.peer:
-            self.active()
+        self.authorize_connect()
+        if self.user is not None:
+            self.build_socket()
+            if self.proto.startswith("BEE"):
+                self.peer = self.verify_connect()
+            if self.peer or self.proto.startswith("HTTP"):
+                self.active()
+
+    def authorize_connect(self):
+        if self.proto.startswith("HTTP"):
+            if self.token == "/":
+                self.user, self.passwd, self.task = "", "", "index"
+                return
+            
+            login_token =  LOGIN.findall(self.token)
+            if login_token:
+                self.user, self.passwd = login_token[0]
+                self.task = "login"
+                return 
+
+            download_token = DOWNLOAD.findall(self.token)
+            if download_token:
+                self.user, self.passwd = download_token[0]
+                self.task = "download"
+        
+        elif self.proto.startswith("BEE"):
+            if self.token not in self.userinfo:
+                sock.sendall(b"ERROR: User name is incorrect.")
+                return
+            self.user, self.passwd = self.token, self.userinfo[self.token]
 
     def verify_connect(self):
         try:

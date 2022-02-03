@@ -10,6 +10,7 @@ from ..encrypt import AESCoder, SUPPORT_AES
 from ..utils import disconnect
 
 
+
 class BaseServer(BaseWorker):
     def __init__(self, users, port):
         self.host = "0.0.0.0"
@@ -31,23 +32,27 @@ class BaseServer(BaseWorker):
         return task, user, proto, socket
     
     def parse_line(self, sock, max_len):
-        line = b""
-        sock.settimeout(0.01)
         try:
+            line = []
+            sock.settimeout(0.001)
             for i in range(max_len):
-                line += sock.recv(1)
-                if line.endswith(b"\r\n"):
+                line.append(sock.recv(1))
+                if line[-1] == b"\n" and len(line) >= 3 and line[-2] == b"\r":
                     break
-            
-            check = b"".join(line).strip().decode("utf8").split(" ")
-            if len(check) != 3:
-                disconnect(sock)
-                return None, None, None
-            if check[2].startswith("BEE") and line[1] not in self.users:
-                sock.sendall(b"ERROR: User name is incorrect.")
-                return None, None, None
             sock.settimeout(None)
-            return line
+            line = b"".join(line[:-2])
+            assert line.count(b" ") == 2
+        except:
+            return None, None, None
+
+        try:
+            check = line.strip().decode("utf8").split(" ")
+            assert len(check) == 3
+            check[0] = check[0].lower()
+            assert check[0] in {"download", "upload", "get", "post", "exit"}
+            check[2] = check[2].upper()
+            assert check[2].startswith("HTTP") or check[2].startswith("BEE")
+            return check
         except Exception:
             disconnect(sock)
             return None, None, None
