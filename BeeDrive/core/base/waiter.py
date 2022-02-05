@@ -48,7 +48,7 @@ class BaseWaiter(BaseWorker):
             download_token = DOWNLOAD.findall(self.token)
             if download_token:
                 self.user, self.passwd = download_token[0]
-                self.task = "download"
+                self.task = "get"
         
         elif self.proto.startswith("BEE"):
             if self.token not in self.userinfo:
