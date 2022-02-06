@@ -29,7 +29,7 @@ class GetWaiter(BaseWaiter):
     def run(self):
         with self:
             print(self.token, self.task, self.user, self.passwd)
-            self.socket.recv(TCP_BUFF_SIZE)
+            
             if self.task == "index":
                 status, ctype, content = "200", "text/html; charset=utf-8", INDEX_PAGE % (WELCOME, LOGIN)
             elif self.task == "login":
@@ -41,19 +41,22 @@ class GetWaiter(BaseWaiter):
                     status, ctype, content = self.render_get()
        
             self.response(status, ctype, content)
+            print("Responsed!")
 
     def response(self, status, ctype, content):
         if not isinstance(content, bytes):
             content = content.encode("utf8")
-        header = ["HTTP/1.0 %s OK" % status,
+        header = ["HTTP/1.1 %s OK" % status,
                   "Connection: close",
                   "Content-Type: %s" % ctype,
-                  #"Content-Length: %d" % (8 * len(content)),
+                  "Content-Length: %d" % (8 * len(content)),
+                  #"Content-Disposition: attachment; filename=Test.pdf",
                   "Cache-Control: no-cache",
                   "\r\n"]
         header = "\r\n".join(header).encode("utf8")
-        print((header + content.strip()).decode())
-        self.socket.sendall(header + content)
+        
+        self.socket.sendall(header + content.replace(b"\n", b"\r\n"))
+        self.socket.close()
 
     def render_login(self):
         if self.user not in self.userinfo:
@@ -69,10 +72,10 @@ class GetWaiter(BaseWaiter):
     def render_get(self):
         token_path = os.path.join(self.root, "." + self.user)
         if not os.path.exists(token_path):
-            return INDEX_PAGE % ("Cookie Token is expired!", LOGIN)
+            return "200", "text/html", INDEX_PAGE % ("Cookie Token is expired!", LOGIN)
         info = pickle.load(open(token_path, "rb"))
         if time.time() > info["deadline"]:
-            return INDEX_PAGE % ("Cookie Token is expired!", LOGIN)
+            return "200", "text/html", INDEX_PAGE % ("Cookie Token is expired!", LOGIN)
         
         self.user, self.passwd, query, token = info["user"], self.userinfo[info["user"]], self.passwd, self.user
         query = query.replace("%20", " ")
@@ -81,13 +84,16 @@ class GetWaiter(BaseWaiter):
             page = INDEX_PAGE % ("Welcome back %s!" % self.user, self.render_list_dir(query, token))
             return "200", "text/html", page
         with open(target, "rb") as f:
-            return "200", "application/octet-stream", f.read()
+            return "200", "application/force-download", f.read()
 
     def render_list_dir(self, root, token):
         content = "<h2>Directory listing for /%s </h2>" % root
         content += "<ul>"
+        father_root = os.path.split(os.path.abspath(root))[0]
         if root != self.user:
-            content += '<li><a href="/?cookie=%s&file=%s">../</a>' % (token, os.path.split(root)[0])
+            father_root = root[:-1] if root.endswith("/") else root
+            father_root = os.path.split(father_root)[0]
+            content += '<li><a href="/?cookie=%s&file=%s">../</a>' % (token, father_root)
 
         dirs, files = [], []
         for each in sorted(os.listdir(os.path.join(self.root, root))):

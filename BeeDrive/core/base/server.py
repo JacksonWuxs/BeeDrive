@@ -28,21 +28,23 @@ class BaseServer(BaseWorker):
     def accept_connect(self):
         # accept a new connection and welcome
         socket = self.socket.accept()[0]
-        task, user, proto = self.parse_line(socket, 128)
+        task, user, proto = self.parse_line(socket, 256)
         return task, user, proto, socket
     
     def parse_line(self, sock, max_len):
         try:
-            line = []
-            sock.settimeout(0.001)
-            for i in range(max_len):
-                line.append(sock.recv(1))
-                if line[-1] == b"\n" and len(line) >= 3 and line[-2] == b"\r":
+            cache = []
+            sock.settimeout(0.1)
+            for i in range(TCP_BUFF_SIZE):
+                word = sock.recv(1)
+                if word == b"\n" or word == b"":
                     break
-            sock.settimeout(None)
-            line = b"".join(line[:-2])
+                cache.append(word)
+            sock.settimeout(False)
+            line = b"".join(cache[:-1])
             assert line.count(b" ") == 2
         except:
+            disconnect(sock)
             return None, None, None
 
         try:

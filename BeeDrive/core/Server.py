@@ -8,7 +8,7 @@ from .constant import IsFull, NewTask, KillTask, Update, Stop, ALIVE
 from .utils import build_connect, get_uuid
 from .uploader import UploadWaiter
 from .downloader import DownloadWaiter
-from .http import GetWaiter
+from .browser import GetWaiter
 from .logger import callback_info, callback_flush
 
 

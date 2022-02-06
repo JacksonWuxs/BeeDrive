@@ -30,6 +30,8 @@ class BaseWorker(threading.Thread):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         disconnect(self.socket)
+        if exc_type is not None:
+            print(traceback.format_exc())
         self.history = b""
         self.isConn = False
         self.socket = None
