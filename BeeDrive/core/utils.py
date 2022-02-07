@@ -1,6 +1,5 @@
 import time
-
-from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_KEEPALIVE
+import socket
 from uuid import getnode, uuid1
 from os import path, listdir
 
@@ -37,10 +36,14 @@ def get_uuid():
     return str(uuid1())
 
 
+def get_ip():
+    return socket.gethostbyname(socket.gethostname())
+
+
 def build_connect(host, port):
-    conn = socket(AF_INET, SOCK_STREAM)
-    conn.setsockopt(SOL_SOCKET, SO_REUSEADDR, True)
-    conn.setsockopt(SOL_SOCKET, SO_KEEPALIVE, True)
+    conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
+    conn.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
     try:
         conn.connect((host, port))
         return conn
@@ -95,3 +98,14 @@ def analysis_ip(addr):
             ip, port = item.split(":")
             addrs.append((ip, int(port)))
     return addrs
+
+
+def print_qrcode(text):
+    try:
+        import qrcode
+        qr = qrcode.QRCode()
+        qr.add_data(text)
+        qr.make()
+        qr.print_ascii(invert=True)
+    except ImportError:
+        pass

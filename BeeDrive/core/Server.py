@@ -8,12 +8,12 @@ from .constant import IsFull, NewTask, KillTask, Update, Stop, ALIVE
 from .utils import build_connect, get_uuid
 from .uploader import UploadWaiter
 from .downloader import DownloadWaiter
-from .browser import GetWaiter
+from .browser import HTTPWaiter
 from .logger import callback_info, callback_flush
 
 
 WAITERS = {"upload": UploadWaiter, "download": DownloadWaiter,
-           "get": GetWaiter, "post": GetWaiter}
+           "get": HTTPWaiter, "post": HTTPWaiter}
 
 
 class ExistMessager(BaseClient):
@@ -55,8 +55,8 @@ class LocalServer(BaseServer):
         self.build_server(self.max_worker * self.max_manager)
         self.active()
         self.add_new_manager()
-        callback_info("Server has been launched at %s" % (self.target,))
-
+        callback_info("Server has been launched at %s:%s" % self.target)
+        
     def add_new_task(self, proto, token, task, sock):
         while True:
             for manager in self.managers:
