@@ -41,7 +41,7 @@ class UploadClient(BaseClient):
             
         with open(self.file, 'rb') as f:
             f.seek(bkpnt)
-            while self.isConn:
+            while self.is_conn:
                 row = f.read(TCP_BUFF_SIZE)
                 if len(row) == 0:
                     break

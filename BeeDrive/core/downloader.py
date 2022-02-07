@@ -57,7 +57,7 @@ class DownloadClient(BaseClient):
         self.percent = bkpnt / fsize
         self.send(b"ready")
         with open(local_file, mode, DISK_BUFF_SIZE) as f:
-            while self.isConn and self.percent < 1:
+            while self.is_conn and self.percent < 1:
                 text = self.recv()
                 if not text:
                     break
@@ -138,7 +138,7 @@ class DownloadWaiter(BaseWaiter):
             
             with open(local_file, "rb") as f:
                 f.seek(bkpnt)
-                while self.isConn:
+                while self.is_conn:
                     row = f.read(TCP_BUFF_SIZE)
                     if len(row) == 0:
                         break

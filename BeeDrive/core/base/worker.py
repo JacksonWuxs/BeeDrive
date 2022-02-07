@@ -30,8 +30,6 @@ class BaseWorker(threading.Thread):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         disconnect(self.socket)
-        if exc_type is not None:
-            callback_info(traceback.format_exc())
         self.history = b""
         self.is_conn = False
         self.socket = None
@@ -40,7 +38,7 @@ class BaseWorker(threading.Thread):
         assert self.socket is not None
         assert self.sender and self.reciver
         assert isinstance(self.info, IDCard)
-        self.isConn = True
+        self.is_conn = True
 
     def build_socket(self):
         if not self.socket:

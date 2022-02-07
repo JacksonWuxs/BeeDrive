@@ -14,7 +14,9 @@ from .utils import get_uuid
 WELCOME = "Welcome to BeeDrive Cloud Service!"
 LOGIN = """<h2> Please Login</h2><form action="/" method="GET" target="_self" autocomplete="on"><p> User Name: <input type="text" name="user"><br></p><p> &nbsp; &nbsp;Password: <input type="password" name="passwd"> <input type="submit" value="Login"> </p></form>"""
 SOURCE_DIR = os.path.split(os.path.split(__file__)[0])[0]
-INDEX_PAGE = open(SOURCE_DIR + "/source/index.html", "r", encoding="utf8").read()
+INDEX_PATH = os.path.abspath(os.path.join(SOURCE_DIR + "/source/index.html"))
+ICON_PATH = os.path.abspath(os.path.join(SOURCE_DIR + "/source/icon.ico"))
+INDEX_PAGE = open(INDEX_PATH, "r", encoding="utf8").read()
 
 
 class GetWaiter(BaseWaiter):
@@ -33,7 +35,7 @@ class GetWaiter(BaseWaiter):
                 self.response(self.render_login())
             elif self.task == "get":
                 if self.token == "/favicon.ico":
-                    self.response(open(SOURCE_DIR + "/source/icon.ico", "rb"))
+                    self.response(open(ICON_PATH, "rb"))
                 else:
                     self.response(self.render_get())
             self.socket.close()
@@ -56,9 +58,12 @@ class GetWaiter(BaseWaiter):
         if isinstance(content, bytes):
             self.socket.sendall(content)
         else:
-            writer = socketserver._SocketWriter(self.socket)
-            shutil.copyfileobj(content, writer)
-        
+            try:
+                writer = socketserver._SocketWriter(self.socket)
+                shutil.copyfileobj(content, writer)
+                time.sleep(0.5)
+            finally:
+                content.close()
 
     def render_login(self):
         if self.user not in self.userinfo:
@@ -67,27 +72,35 @@ class GetWaiter(BaseWaiter):
             return INDEX_PAGE % ("Password is incorrect!", LOGIN)
 
         token = get_uuid()
-        if not os.path.exists(os.path.join(self.root, "./.cookis")):
-            os.makedirs(os.path.join(self.root, "./.cookis"))
-        with open(os.path.join(self.root, "./.cookis/." + token), "wb") as f:
+        cookie_dir = os.path.abspath(os.path.join(self.root, ".cookies"))
+        if not os.path.exists(cookie_dir):
+            os.makedirs(cookie_dir)
+        with open(os.path.join(cookie_dir, token), "wb") as f:
             pickle.dump({"user": self.user, "deadline": time.time() + 600}, f)
-        return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, self.render_list_dir(self.user, token))
+        page_content = self.render_list_dir(self.user, token)
+        return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
 
     def render_get(self):
-        token_path = os.path.join(self.root, "./.cookis/." + self.user)
+        cookie_dir = os.path.abspath(os.path.join(self.root, ".cookies"))
+        token_path = os.path.join(cookie_dir, self.user)
         if not os.path.exists(token_path):
             return INDEX_PAGE % ("Cookie is expired!", LOGIN)
         info = pickle.load(open(token_path, "rb"))
         if time.time() > info["deadline"]:
-            os.remove(self.root, "./cookis/." + self.user)
+            os.remove(token_path)
             return INDEX_PAGE % ("Cookie is expired!", LOGIN)
         
         self.user, self.passwd, query, token = info["user"], self.userinfo[info["user"]], self.passwd, self.user
         query = query.replace("%20", " ")
-        target = os.path.join(self.root, query)
+        target = os.path.abspath(os.path.join(self.root, query))
         if os.path.isdir(target):
-            return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, self.render_list_dir(query, token))
-        return open(target, "rb")
+            page_content = self.render_list_dir(query, token)
+            return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
+        try:
+            return open(target, "rb")
+        except OSError:
+            page_content = "<h3>Sorry, cloud has no authorization to access the target file</h3>"
+            return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
 
     def render_list_dir(self, root, token):
         content = "<h3>Visiting: /%s</h3>" % root
@@ -99,23 +112,24 @@ class GetWaiter(BaseWaiter):
         
         content += "<h3>Download</h3>"
         content += "<ul>"
-        father_root = os.path.split(os.path.abspath(root))[0]
         if root != self.user:
-            
             father_root = root[:-1] if root.endswith("/") else root
             father_root = os.path.split(father_root)[0]
             content += '<li><a href="/?cookie=%s&file=%s">../</a>' % (token, father_root)
 
         dirs, files = [], []
-        for each in sorted(os.listdir(os.path.join(self.root, root))):
-            if os.path.isdir(os.path.join(self.root, root, each)):
+        dir_path = os.path.abspath(os.path.join(self.root, root))
+        for each in sorted(os.listdir(dir_path)):
+            if os.path.isdir(os.path.join(dir_path, each)):
                 each += r"/"
                 dirs.append(each)
             else:
                 files.append(each)
 
-        for each in itertools.chain(dirs, files):
-            link = os.path.join(root, each).replace("\\", "/")
-            content += '<li><a href="/?cookie=%s&file=%s">%s</a>' % (token, link, each)
+        for fname in itertools.chain(dirs, files):
+            link = os.path.join(dir_path, fname).replace(self.root, "")
+            if ord(link[0]) in (92, 47):
+                link = link[1:]
+            content += '<li><a href="/?cookie=%s&file=%s">%s</a>' % (token, link, fname)
         content += "</ul>"
         return content
