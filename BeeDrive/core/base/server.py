@@ -28,10 +28,10 @@ class BaseServer(BaseWorker):
     def accept_connect(self):
         # accept a new connection and welcome
         socket = self.socket.accept()[0]
-        task, user, proto = self.parse_line(socket, 256)
+        task, user, proto = self.parse_line(socket)
         return task, user, proto, socket
     
-    def parse_line(self, sock, max_len):
+    def parse_line(self, sock):
         try:
             cache = []
             sock.settimeout(0.1)
