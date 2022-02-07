@@ -41,7 +41,7 @@ class UploadClient(BaseClient):
             
         with open(self.file, 'rb') as f:
             f.seek(bkpnt)
-            while self.isConn:
+            while self.is_conn:
                 row = f.read(TCP_BUFF_SIZE)
                 if len(row) == 0:
                     break
@@ -63,8 +63,8 @@ class UploadClient(BaseClient):
             
 
 class UploadWaiter(BaseWaiter):
-    def __init__(self, user, passwd, root, task, conn, encrypt):
-        BaseWaiter.__init__(self, user, passwd, task, conn, encrypt)
+    def __init__(self, infos, proto, token, root, task, conn):
+        BaseWaiter.__init__(self, infos, proto, token, task, conn)
         self.root = path.abspath(root)
         self.percent = 0.0
         self.msg = "Preparing to recive file"

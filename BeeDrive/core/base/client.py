@@ -4,7 +4,7 @@ import time
 from .idcard import IDCard
 from .worker import BaseWorker
 from ..utils import build_connect, disconnect
-from ..logger import callback_info
+from ..logger import callback_info, callback_flush
 from ..encrypt import SUPPORT_AES, AESCoder
 from ..constant import END_PATTERN, TCP_BUFF_SIZE, VERSION
 from ..constant import (STAGE_INIT, STAGE_PRE, STAGE_RUN,
@@ -12,7 +12,8 @@ from ..constant import (STAGE_INIT, STAGE_PRE, STAGE_RUN,
 
 
 class BaseClient(BaseWorker):
-    def __init__(self, user, passwd, target, task, retry, encrypt, proxy):
+    def __init__(self, user, passwd, target, task,
+                 retry=3, encrypt=True, proxy=None):
         self.msg = self.stage = STAGE_INIT
         BaseWorker.__init__(self, None, encrypt)
         self.proxy = [] if proxy is None else proxy
@@ -97,7 +98,9 @@ class BaseClient(BaseWorker):
                 try:
                     if self.peer:
                         self.stage = STAGE_RUN
-                        if self.process(**kwrds) is True:
+                        result = self.process(**kwrds)
+                        callback_flush()
+                        if result is True:
                             self.stage = STAGE_DONE
                             return
                 except ConnectionResetError:

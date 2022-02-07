@@ -34,12 +34,12 @@ class ClientManager(BaseManager):
 
     def upload(self, user, passwd, cloud, source, retry, encrypt, proxy, **kwrds):
         source = os.path.abspath(source)
-        root = os.path.abspath(os.path.join(os.path.split(source)[0]))
+        root = os.path.abspath(os.path.split(source)[0])
         files = list_files(source)
         for i, file in enumerate(files, 1):
             self.wait_until_free(i, len(files))
             fold = os.path.abspath(os.path.split(file)[0]).replace(root, "")
-            if len(fold) > 0 and ord(fold[0]) == 92:
+            if len(fold) > 0 and ord(fold[0]) in (92, 47):
                 fold = fold[1:]
             client = UploadClient(user, passwd, cloud, file, retry, encrypt, fold, proxy)
             self.pool[client.info.uuid] = client

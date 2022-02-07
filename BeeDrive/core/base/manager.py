@@ -115,7 +115,7 @@ class BaseManager(multiprocessing.Process):
     def update_worker_status(self):
         worker_status = []
         for uuid, worker in self.pool.items():
-            info = (uuid, worker.isAlive(), worker.isConn, worker.percent, worker.msg)         
+            info = (uuid, worker.is_alive(), worker.is_conn, worker.percent, worker.msg)         
             worker_status.append(info)
         for uuid, alive, _, _, _ in worker_status:
             if alive is False:

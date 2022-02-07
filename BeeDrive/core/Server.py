@@ -5,19 +5,20 @@ from multiprocessing import cpu_count
 
 from .base import BaseServer, BaseClient, BaseManager
 from .constant import IsFull, NewTask, KillTask, Update, Stop, ALIVE
-from .utils import build_connect
+from .utils import build_connect, get_uuid
 from .uploader import UploadWaiter
 from .downloader import DownloadWaiter
+from .browser import GetWaiter
 from .logger import callback_info, callback_flush
 
 
-WAITERS = {"upload": UploadWaiter, "download": DownloadWaiter}
+WAITERS = {"upload": UploadWaiter, "download": DownloadWaiter,
+           "get": GetWaiter, "post": GetWaiter}
 
 
 class ExistMessager(BaseClient):
-    def __init__(self, port):
-        BaseClient.__init__(self, 'xuansheng', u"", ('127.0.0.1', port), 'exist',
-                            3, False, [])
+    def __init__(self, exit_code, port):
+        BaseClient.__init__(self, exit_code, "", ('127.0.0.1', port), 'exit')
         self.start()
 
     def run(self):
@@ -31,8 +32,8 @@ class WorkerManager(BaseManager):
         self.work_dir = work_dir
         self.launch()
 
-    def launch_task(self, user, passwd, task, sock, root):
-        worker = WAITERS[task](user, passwd, root, task, sock, False)
+    def launch_task(self, users, proto, token, task, sock, root):
+        worker = WAITERS[task](users, proto, token, root, task, sock)
         self.pool[worker.info.uuid] = worker
         self.send(worker.info.uuid)
 
@@ -46,49 +47,49 @@ class LocalServer(BaseServer):
         self.max_worker = max_worker
         self.managers = set()
         self.workdir = path.abspath(save_path)
+        self.exit_code = get_uuid()
 
     def __enter__(self):
         self.build_socket()
         self.build_pipeline()
         self.build_server(self.max_worker * self.max_manager)
         self.active()
-        callback_info("Server has been launched at %s" % (self.target,))
         self.add_new_manager()
+        callback_info("Server has been launched at %s" % (self.target,))
 
-    def add_new_task(self, user, passwd, task, sock, root):
+    def add_new_task(self, proto, token, task, sock):
         while True:
             for manager in self.managers:
                 if manager.echo(IsFull) is False:
-                    uuid = manager.echo(NewTask,
-                                        user=user,
-                                        passwd=passwd,
-                                        task=task,
-                                        sock=sock,
-                                        root=root)
+                    manager.echo(NewTask,
+                                 users=self.users,
+                                 root=self.workdir,
+                                 proto=proto,
+                                 token=token,
+                                 task=task,
+                                 sock=sock)
                     return
-                
             self.add_new_manager()
-            if len(self.managers) == self.max_manager:
-                sleep(1)
+            time.sleep(1.0)
 
     def add_new_manager(self):
         if len(self.managers) < self.max_manager:
             manager = WorkerManager.get_controller(name=self.name,
-                                         work_dir=self.workdir,
-                                         pool_size=self.max_worker)
+                                     work_dir=self.workdir,
+                                     pool_size=self.max_worker)
             self.managers.add(manager)
 
     def run(self):
         with self:
-            while self.isConn:
-                task, user, protocol, sock = self.accept_connect()
-                if task == "exist":
+            while self.is_conn:
+                task, token, protocol, sock = self.accept_connect()
+                if task == "exit" and token == self.exit_code:
                     break
-                elif task is not None:
-                    self.add_new_task(user, self.users[user], task, sock, self.workdir)
+                elif task and protocol:
+                    self.add_new_task(protocol, token, task, sock)
 
     def stop(self):
-        exits = ExistMessager(self.port)
+        exits = ExistMessager(self.exit_code, self.port)
         for manager in self.managers:
             manager.join_do(Stop)
         exits.join()

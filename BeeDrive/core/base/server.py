@@ -10,6 +10,7 @@ from ..encrypt import AESCoder, SUPPORT_AES
 from ..utils import disconnect
 
 
+
 class BaseServer(BaseWorker):
     def __init__(self, users, port):
         self.host = "0.0.0.0"
@@ -27,27 +28,33 @@ class BaseServer(BaseWorker):
     def accept_connect(self):
         # accept a new connection and welcome
         socket = self.socket.accept()[0]
-        task, user, proto = self.parse_line(socket, 128)
+        task, user, proto = self.parse_line(socket, 256)
         return task, user, proto, socket
     
     def parse_line(self, sock, max_len):
-        line = b""
-        sock.settimeout(0.01)
         try:
-            for i in range(max_len):
-                line += sock.recv(1)
-                if line.endswith(b"\r\n"):
+            cache = []
+            sock.settimeout(0.1)
+            for i in range(TCP_BUFF_SIZE):
+                word = sock.recv(1)
+                if word == b"\n" or word == b"":
                     break
+                cache.append(word)
+            sock.settimeout(False)
+            line = b"".join(cache[:-1])
+            assert line.count(b" ") == 2
+        except:
+            disconnect(sock)
+            return None, None, None
 
-            line = line.strip().decode("utf8").split(" ")
-            if len(line) != 3:
-                disconnect(sock)
-                return None, None, None
-            if line[1] not in self.users:
-                sock.sendall(b"ERROR: User name is incorrect.")
-                return None, None, None
-            sock.settimeout(None)
-            return line
+        try:
+            check = line.strip().decode("utf8").split(" ")
+            assert len(check) == 3
+            check[0] = check[0].lower()
+            assert check[0] in {"download", "upload", "get", "post", "exit"}
+            check[2] = check[2].upper()
+            assert check[2].startswith("HTTP") or check[2].startswith("BEE")
+            return check
         except Exception:
             disconnect(sock)
             return None, None, None
