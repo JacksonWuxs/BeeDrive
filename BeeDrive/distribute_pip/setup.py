@@ -23,6 +23,7 @@ setuptools.setup(
     packages=setuptools.find_packages(where=os.path.abspath("../../"),
                                       exclude=("../distribute_exe",
                                                "../distribute_pip",)),
+    package_data={"BeeDrive.source": ["*.*"]},
     license="GPL v3",
     classifiers=[
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
