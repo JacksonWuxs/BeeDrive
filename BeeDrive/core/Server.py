@@ -81,7 +81,7 @@ class LocalServer(BaseServer):
 
     def run(self):
         with self:
-            while self.isConn:
+            while self.is_conn:
                 task, token, protocol, sock = self.accept_connect()
                 if task == "exit" and token == self.exit_code:
                     break

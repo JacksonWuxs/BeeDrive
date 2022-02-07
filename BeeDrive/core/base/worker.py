@@ -19,7 +19,7 @@ class BaseWorker(threading.Thread):
         self.socket = sock             # socket instance
         self.info = IDCard.create(encrypt)
         self.use_proxy = False         # we try to connect the target directly
-        self.isConn = False            # whether socket is connected
+        self.is_conn = False           # whether socket is connected
         self.sender = clean_coder      # pipeline for sending data
         self.reciver = clean_coder     # pipeline for reciving data
         self.history = b"" 
@@ -31,9 +31,9 @@ class BaseWorker(threading.Thread):
     def __exit__(self, exc_type, exc_val, exc_tb):
         disconnect(self.socket)
         if exc_type is not None:
-            print(traceback.format_exc())
+            callback_info(traceback.format_exc())
         self.history = b""
-        self.isConn = False
+        self.is_conn = False
         self.socket = None
 
     def active(self):
