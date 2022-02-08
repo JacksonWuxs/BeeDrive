@@ -12,7 +12,7 @@ class DownloadClient(BaseClient):
     def __init__(self, user, psd, cloud, file, root, retry, encrypt, proxy):
         BaseClient.__init__(self, user, psd, cloud, 'download', retry, encrypt, proxy)
         self.root = path.abspath(root)
-        self.fold = path.split(file)[0]
+        self.fold = path.dirname(file)
         self.file = file
         self.percent = 0.0
         self.start()
@@ -32,7 +32,8 @@ class DownloadClient(BaseClient):
 
     def process(self, fname, fcode, fsize, local_fold, local_file):
         # update file information
-        self.send(str({'fname': fname, 'fcode': fcode, 'fsize': fsize}))
+        self.send(str({'fname': fname, 'ffold': self.fold,
+                       'fcode': fcode, 'fsize': fsize}))
         self.msg = "Verifying file information"
         file_info = loads(self.recv())
         if "error" in file_info:
@@ -99,8 +100,8 @@ class DownloadWaiter(BaseWaiter):
             fname = header['fname']
             fcode = header['fcode']
             fsize = header['fsize']
-            
-            local_file = path.join(self.root, fname)
+            ffold = header['ffold']
+            local_file = path.abspath(path.join(self.root, self.user, ffold, fname))
 
             # check wether the target file is in under other users
             if not local_file.startswith(self.root):
@@ -156,3 +157,4 @@ class DownloadWaiter(BaseWaiter):
             spent = max(0.001, time() - begin_time)
             self.msg = callback_processbar(bkpnt/local_size, task, bkpnt/spent, spent)
             self.stage = self.msg = self.recv().decode()
+            callback_flush()

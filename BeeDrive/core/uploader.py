@@ -119,3 +119,4 @@ class UploadWaiter(BaseWaiter):
             check = file_md5(fpath, bkpnt) == fcode
             self.stage = STAGE_DONE if check else STAGE_FAIL
             self.send(str(check))
+            callback_flush()
