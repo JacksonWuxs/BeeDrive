@@ -4,6 +4,10 @@ from uuid import getnode, uuid1
 from os import path, listdir
 
 
+def clean_path(root):
+    return path.abspath(root).replace("\\", "/")
+
+
 def trust_sleep(time_to_sleep, longest_sleep=604800):
     assert isinstance(time_to_sleep, (float, int))
     assert time_to_sleep > 0

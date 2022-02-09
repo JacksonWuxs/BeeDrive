@@ -3,6 +3,7 @@ from pickle import dumps, loads
 from time import time, sleep
 from traceback import format_exc
 
+from .utils import clean_path
 from .base import BaseClient, BaseWaiter
 from .encrypt import file_md5
 from .constant import TCP_BUFF_SIZE, DISK_BUFF_SIZE, STAGE_DONE, STAGE_FAIL
@@ -65,7 +66,7 @@ class UploadClient(BaseClient):
 class UploadWaiter(BaseWaiter):
     def __init__(self, infos, proto, token, root, task, conn):
         BaseWaiter.__init__(self, infos, proto, token, task, conn)
-        self.root = path.abspath(root)
+        self.root = clean_path(root)
         self.percent = 0.0
         self.msg = "Preparing to recive file"
         self.start()
@@ -79,11 +80,15 @@ class UploadWaiter(BaseWaiter):
             fpath = header['fold']
             fname = header['fname']
             fcode = header['fcode']
-            folder_path = path.abspath(path.join(self.root, self.user, fpath))
+            folder_path = clean_path(path.join(self.root, self.user, fpath))
 
             # create a folder if it doesn't exist
             if not path.isdir(folder_path):
-                makedirs(folder_path)
+                try:
+                    makedirs(folder_path)
+                except FileExistsError:
+                    #it may happen when multi-threading uploading
+                    pass
             fpath = path.join(folder_path, fname)
             
             # new file or breakpoint continuation

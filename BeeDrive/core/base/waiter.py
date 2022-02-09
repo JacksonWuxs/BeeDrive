@@ -11,7 +11,7 @@ from ..logger import callback_info
 
 LOGIN = re.compile("/\?user=(.*)&passwd=(.*)")
 DOWNLOAD = re.compile("/?cookie=(.*)&file=(.*)")
-UPLOAD = re.compile("/?cookie=(.*)&upload")
+UPLOAD = re.compile("/?cookie=(.*)&upload=(.*)")
         
 class BaseWaiter(BaseWorker):
     def __init__(self, infos, proto, token, task, conn):
@@ -52,7 +52,7 @@ class BaseWaiter(BaseWorker):
 
             upload_token = UPLOAD.findall(self.token)
             if upload_token:
-                self.user, self.passwd = upload_token[0], ""
+                self.user, self.passwd = upload_token[0]
                 self.task = "post"
         
         elif self.proto.startswith("BEE"):

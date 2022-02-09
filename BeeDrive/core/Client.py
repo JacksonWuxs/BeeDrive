@@ -4,7 +4,7 @@ from json import dumps, loads
 
 from .base import BaseManager
 from .constant import Done, NewTask, Stop, STAGE_DONE, STAGE_FAIL
-from .utils import list_files
+from .utils import list_files, clean_path
 from .uploader import UploadClient
 from .downloader import DownloadClient
 
@@ -33,13 +33,13 @@ class ClientManager(BaseManager):
         self.send(Done)
 
     def upload(self, user, passwd, cloud, source, retry, encrypt, proxy, **kwrds):
-        source = os.path.abspath(source)
-        root = os.path.abspath(os.path.split(source)[0])
+        source = clean_path(source)
+        root = clean_path(os.path.dirname(source))
         files = list_files(source)
         for i, file in enumerate(files, 1):
             self.wait_until_free(i, len(files))
-            fold = os.path.abspath(os.path.split(file)[0]).replace(root, "")
-            if len(fold) > 0 and ord(fold[0]) in (92, 47):
+            fold = clean_path(os.path.dirname(file)).replace(root, "")
+            if len(fold) > 0 and ord(fold[0]) == 47:
                 fold = fold[1:]
             client = UploadClient(user, passwd, cloud, file, retry, encrypt, fold, proxy)
             self.pool[client.info.uuid] = client

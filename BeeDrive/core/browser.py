@@ -8,14 +8,14 @@ import re
 
 from .base import BaseWaiter
 from .constant import TCP_BUFF_SIZE
-from .utils import get_uuid
+from .utils import get_uuid, clean_path
 
 
 WELCOME = "Welcome to BeeDrive Cloud Service!"
 LOGIN = """<h2> Please Login</h2><form action="/" method="GET" target="_self" autocomplete="on"><p> User Name: <input type="text" name="user"><br></p><p> &nbsp; &nbsp;Password: <input type="password" name="passwd"> <input type="submit" value="Login"> </p></form>"""
 SOURCE_DIR = os.path.split(os.path.split(__file__)[0])[0]
-INDEX_PATH = os.path.abspath(os.path.join(SOURCE_DIR + "/source/index.html"))
-ICON_PATH = os.path.abspath(os.path.join(SOURCE_DIR + "/source/icon.ico"))
+INDEX_PATH = clean_path(os.path.join(SOURCE_DIR + "/source/index.html"))
+ICON_PATH = clean_path(os.path.join(SOURCE_DIR + "/source/icon.ico"))
 INDEX_PAGE = open(INDEX_PATH, "r", encoding="utf8").read()
 
 
@@ -42,6 +42,7 @@ class HTTPWaiter(BaseWaiter):
                 else:
                     self.response(INDEX_PAGE % (WELCOME, LOGIN))
             finally:
+                time.sleep(5.0)
                 self.socket.close()
 
     def response(self, content):
@@ -65,8 +66,12 @@ class HTTPWaiter(BaseWaiter):
             try:
                 writer = socketserver._SocketWriter(self.socket)
                 shutil.copyfileobj(content, writer)
-                time.sleep(0.5)
+            except BrokenPipeError:
+                # user may stop the downloading
+                pass
             finally:
+                # give time to let the cache flush
+                time.sleep(0.5)
                 content.close()
 
     def do_login(self):
@@ -76,11 +81,12 @@ class HTTPWaiter(BaseWaiter):
             return INDEX_PAGE % ("Password is incorrect!", LOGIN)
 
         self.token = get_uuid()
-        cookie_dir = os.path.abspath(os.path.join(self.root, ".cookies"))
+        cookie_dir = clean_path(os.path.join(self.root, ".cookies"))
         if not os.path.exists(cookie_dir):
             os.makedirs(cookie_dir)
         with open(os.path.join(cookie_dir, self.token), "wb") as f:
             pickle.dump({"user": self.user, "deadline": time.time() + 600, "token": self.token}, f)
+        
         page_content = self.render_list_dir(self.user)
         return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
 
@@ -90,7 +96,7 @@ class HTTPWaiter(BaseWaiter):
             return rslt
         self.passwd, query = self.userinfo[self.user], self.passwd
         query = query.replace("%20", " ")
-        target = os.path.abspath(os.path.join(self.root, query))
+        target = clean_path(os.path.join(self.root, query))
         if os.path.isdir(target):
             page_content = self.render_list_dir(query)
             return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
@@ -104,6 +110,7 @@ class HTTPWaiter(BaseWaiter):
         rslt = self.check_cookie()
         if isinstance(rslt, str):
             return rslt
+        self.passwd, root = self.userinfo[self.user], self.passwd
         fd = self.socket.makefile("rb", -1)
         headers = self.parse_headers(fd)
         boundary = headers[b"content-type"].split(b"=")[1]
@@ -117,7 +124,7 @@ class HTTPWaiter(BaseWaiter):
             fname = line.split(" ")[-1].split("=")[-1][1:-1]
             if len(fname) == 0:
                 break
-            fpath = os.path.abspath(os.path.join(self.root, self.user, fname))
+            fpath = clean_path(os.path.join(self.root, root, fname))
             ffold = os.path.dirname(fpath)
             if not os.path.exists(ffold):
                 os.makedirs(ffold)
@@ -135,14 +142,15 @@ class HTTPWaiter(BaseWaiter):
                         fw.write(line)
             except IOError:
                 break
-        page_content = self.render_list_dir(self.user)
+        page_content = self.render_list_dir(root)
         return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
 
 
     def render_list_dir(self, root):
+        root = root.replace("\\", "/")
         content = "<h3>Visiting: /%s</h3>" % root
         content += "<h3>Upload</h3>"
-        content += '<form method="post" enctype="multipart/form-data" action="/?cookie=%s&upload">' % self.token
+        content += '<form method="post" enctype="multipart/form-data" action="/?cookie=%s&upload=%s">' % (self.token, root)
         content += '<input ref="input" multiple="multiple" name="file[]" type="file"/>'
         content += '<input type="submit" value="Upload"/></form>'
         content += "<br>"
@@ -151,23 +159,25 @@ class HTTPWaiter(BaseWaiter):
         content += "<ul>"
         if root != self.user:
             father_root = root[:-1] if root.endswith("/") else root
-            father_root = os.path.split(father_root)[0]
+            father_root = os.path.dirname(father_root)
             content += '<li><a href="/?cookie=%s&file=%s">../</a>' % (self.token, father_root)
 
         dirs, files = [], []
-        dir_path = os.path.abspath(os.path.join(self.root, root))
+        dir_path = clean_path(os.path.join(self.root, root))
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
         for each in sorted(os.listdir(dir_path)):
-            if os.path.isdir(os.path.join(dir_path, each)):
+            if each.startswith("."):
+                pass
+            elif os.path.isdir(os.path.join(dir_path, each)):
                 each += r"/"
                 dirs.append(each)
             else:
                 files.append(each)
 
         for fname in itertools.chain(dirs, files):
-            link = os.path.join(dir_path, fname).replace(self.root, "")
-            if ord(link[0]) in (92, 47):
+            link = clean_path(os.path.join(dir_path, fname)).replace(self.root, "")
+            if ord(link[0]) == 47:
                 link = link[1:]
             content += '<li><a href="/?cookie=%s&file=%s">%s</a>' % (self.token, link, fname)
         content += "</ul>"

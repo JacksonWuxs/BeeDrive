@@ -2,6 +2,7 @@ from os import path, makedirs
 from pickle import dumps, loads
 from time import time, sleep
 
+from .utils import clean_path
 from .base import BaseClient, BaseWaiter
 from .encrypt import file_md5
 from .constant import STAGE_DONE, STAGE_FAIL, TCP_BUFF_SIZE, DISK_BUFF_SIZE
@@ -11,7 +12,7 @@ from .logger import callback_info, callback_processbar, callback_flush
 class DownloadClient(BaseClient):
     def __init__(self, user, psd, cloud, file, root, retry, encrypt, proxy):
         BaseClient.__init__(self, user, psd, cloud, 'download', retry, encrypt, proxy)
-        self.root = path.abspath(root)
+        self.root = clean_path(root)
         self.fold = path.dirname(file)
         self.file = file
         self.percent = 0.0
@@ -19,8 +20,8 @@ class DownloadClient(BaseClient):
         
     def prepare(self):
         self.msg = "Collecting file information"
-        loc_fold = path.abspath(path.join(self.root, self.fold))
-        loc_file = path.abspath(path.join(self.root, self.file))
+        loc_fold = clean_path(path.join(self.root, self.fold))
+        loc_file = clean_path(path.join(self.root, self.file))
         fsize = path.getsize(loc_file) if path.isfile(loc_file) else 0
         fcode = file_md5(loc_file, fsize) if path.isfile(loc_file) else b""
         return {"fname": path.split(self.file)[1],
@@ -40,7 +41,7 @@ class DownloadClient(BaseClient):
             self.msg = file_info["error"]
             self.stage = STAGE_FAIL
             callback_info(self.msg)
-            return STAGE_FAIL
+            return True
         
         fcode = file_info["fcode"]
         fsize = file_info["fsize"]
@@ -88,7 +89,7 @@ class DownloadClient(BaseClient):
 class DownloadWaiter(BaseWaiter):
     def __init__(self, infos, proto, token, root, task, conn):
         BaseWaiter.__init__(self, infos, proto, token, task, conn)
-        self.root = path.abspath(root)
+        self.root = clean_path(root)
         self.percent = 0.0
         self.msg = "Preparing to send file"
         self.start()
@@ -101,7 +102,7 @@ class DownloadWaiter(BaseWaiter):
             fcode = header['fcode']
             fsize = header['fsize']
             ffold = header['ffold']
-            local_file = path.abspath(path.join(self.root, self.user, ffold, fname))
+            local_file = clean_path(path.join(self.root, self.user, ffold, fname))
 
             # check wether the target file is in under other users
             if not local_file.startswith(self.root):

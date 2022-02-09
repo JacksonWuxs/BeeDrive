@@ -5,7 +5,7 @@ from multiprocessing import cpu_count
 
 from .base import BaseServer, BaseClient, BaseManager
 from .constant import IsFull, NewTask, KillTask, Update, Stop, ALIVE
-from .utils import build_connect, get_uuid
+from .utils import build_connect, get_uuid, clean_path
 from .uploader import UploadWaiter
 from .downloader import DownloadWaiter
 from .browser import HTTPWaiter
@@ -46,7 +46,7 @@ class LocalServer(BaseServer):
         self.max_manager = max_manager
         self.max_worker = max_worker
         self.managers = set()
-        self.workdir = path.abspath(save_path)
+        self.workdir = clean_path(save_path)
         self.exit_code = get_uuid()
 
     def __enter__(self):
