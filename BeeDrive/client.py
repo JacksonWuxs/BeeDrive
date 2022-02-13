@@ -4,12 +4,13 @@ import os
 import sys
 
 from .core.Client import ClientManager
-from .core.constant import NewTask, Stop, Done, STAGE_FAIL, STAGE_DONE
+from .core.constant import NewTask, Stop, Done, STAGE_FAIL, STAGE_DONE, MAX_THREAD_WORKER
 from .core.utils import analysis_ip, resource_path
 from .configures import save_config, load_config
 
 
 GUI_CONFIG = dict(size=(7, 1), justification='right', text_color="black", background_color="white")
+MAX_THREAD_WORKER = int(MAX_THREAD_WORKER // 2)
 
 
 def cmd_check_config():
@@ -19,10 +20,8 @@ def cmd_check_config():
                       ("Password:", "passwd"),
                       ("Cloud IP:", "cloud"),
                       ("Proxy IP:", "proxy"),
-                      ("Pool Size:", "pool"),
-                      ("Max Retry:", "retry"),
                       ("Encrypt:", "encrypt"),
-                      ("Save To:", "root")]:
+                      ("Save Path:", "root")]:
         print(name, config.get(key, ""))
     sys.exit()
 
@@ -37,15 +36,21 @@ def cmd_get_config(choose):
     config = load_config("client")
     if choose == "default" and len(config) > 0:
         return config
-    print("\nSetup default config for Client")
+    fast_setup = input("Do you need a fast setup? [y|n]:").lower() == "y"
+    print("\nBeeDrive Client Setup")
     config["user"] = input("1. Username to login the Cloud: ")
     config["passwd"] = getpass.getpass("2. Password to login the Cloud: ")
-    config["cloud"] = analysis_ip(input("3. Cloud service IP address [ip:port]: "))[0]
-    config["proxy"] = analysis_ip(input("4. Forwarding Proxy service addresses [ip:port;ip;port;...]: "))
-    config['pool'] = int(input("5. Maximum numer of concurrently transferring files: "))
-    config["retry"] = int(input("6. Maximum number of retry connection: "))
-    config["encrypt"] = input("7. Encrypto transfering data (may slow down speed) [y|n]:").lower() == "y"
-    config["root"] = input("8. Default path to save files: ")
+    config["cloud"] = analysis_ip(input("3. Cloud service address [ip:port]: "))[0]
+    if fast_setup:
+        config["proxy"] = [("beedrive.kitgram.cn", 8888)]
+        config["root"] = config.get("root", "./")
+        config["encrypt"], config["pool"], config["retry"] = True, 4, 3
+    else:
+        config["root"] = input("4. Path to store files: ")
+        config["proxy"] = analysis_ip(input("5. NAT service(s) addresses [ip:port;ip;port;...]: "))
+        config["encrypt"] = input("6. Encrypto your data [y|n]:").lower() == "y"
+        config['pool'] = max(int(input("7. Maximum number of parallel transferring files:")), 1)
+        config["retry"] = max(int(input("8. Maximum number of failed retry:")), 1)
     return save_config("client", **config)
 
 
@@ -101,7 +106,6 @@ def upload_gui():
                              cloud=analysis_ip(rspn[2])[0],
                              proxy=analysis_ip(rspn[3]),
                              pool=4,
-                             retry=5,
                              root=config.get("root", "./"),
                              encrypt=True)
         config["source"] = rspn["tgt"]
@@ -120,7 +124,7 @@ def download_gui():
               [sg.Text("Cloud:", **GUI_CONFIG), sg.InputText(cloud, size=(40, 1))],
               [sg.Text("Proxy:", **GUI_CONFIG), sg.InputText(proxy, size=(40, 1))],
               [sg.Text("Target:", **GUI_CONFIG), sg.InputText("", size=(40, 1))],
-              [sg.Text("Save To:", **GUI_CONFIG), sg.InputText(config.get("root", ""), size=(33, 1), key="path"),
+              [sg.Text("Save:", **GUI_CONFIG), sg.InputText(config.get("root", ""), size=(33, 1), key="path"),
                sg.FolderBrowse("Fold", size=(4, 1), target="path", button_color="brown")],
               [sg.Text("Progress:", **GUI_CONFIG),
                sg.Text("", size=(24, 1), key="status", justification='left', text_color="black", background_color="white"),
@@ -140,7 +144,6 @@ def download_gui():
                              proxy=analysis_ip(rspn[3]),
                              root=rspn["path"],
                              pool=4,
-                             retry=5,
                              encrypt=True)
         config["source"] = rspn[4]
         if gui_run(config, window, "download") in ("Cancel", None):

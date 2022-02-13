@@ -9,7 +9,6 @@ from .uploader import UploadClient
 from .downloader import DownloadClient
 
 
-
 class ClientManager(BaseManager):
     def __init__(self, pipe, name, pool_size):
         BaseManager.__init__(self, pipe, name, pool_size)
@@ -36,6 +35,7 @@ class ClientManager(BaseManager):
         source = clean_path(source)
         root = clean_path(os.path.dirname(source))
         files = list_files(source)
+        i = 0
         for i, file in enumerate(files, 1):
             self.wait_until_free(i, len(files))
             fold = clean_path(os.path.dirname(file)).replace(root, "")

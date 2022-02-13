@@ -10,6 +10,7 @@ END_PATTERN = b'___@@@___'
 
 TCP_BUFF_SIZE = 65535    # 64 KB
 DISK_BUFF_SIZE = 65535   # 64 KB
+MAX_THREAD_WORKER = 16
 
 VERSION = "0.2.1.9"
 DATE = 20220208
@@ -27,3 +28,4 @@ Done = 5       # A specific task is done
 
 IV = b'0123456789123456'
 BLOCK_SIZE = 256
+MAX_CLIENT_SIZE = 16

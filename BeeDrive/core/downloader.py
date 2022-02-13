@@ -3,7 +3,7 @@ from pickle import dumps, loads
 from time import time, sleep
 
 from .utils import clean_path
-from .base import BaseClient, BaseWaiter
+from .base import BaseClient, BaseWaiter, FileAccessLocker
 from .encrypt import file_md5
 from .constant import STAGE_DONE, STAGE_FAIL, TCP_BUFF_SIZE, DISK_BUFF_SIZE
 from .logger import callback_info, callback_processbar, callback_flush
@@ -88,24 +88,25 @@ class DownloadClient(BaseClient):
 
 class DownloadWaiter(BaseWaiter):
     def __init__(self, infos, proto, token, root, task, conn):
-        BaseWaiter.__init__(self, infos, proto, token, task, conn)
-        self.root = clean_path(root)
+        BaseWaiter.__init__(self, infos, proto, token, task, conn, root)
         self.percent = 0.0
         self.msg = "Preparing to send file"
         self.start()
 
     def run(self):
         with self:
+            if not self.is_conn:
+                raise ConnectionResetError
             # detail information of task
             header = eval(self.recv().decode())
             fname = header['fname']
             fcode = header['fcode']
             fsize = header['fsize']
             ffold = header['ffold']
-            local_file = clean_path(path.join(self.root, self.user, ffold, fname))
+            local_file = clean_path(path.join(self.roots[0], self.user, ffold, fname))
 
             # check wether the target file is in under other users
-            if not local_file.startswith(self.root):
+            if not local_file.startswith(self.roots[0]):
                 self.send(dumps({"error": "No authorized to download this file!"}))
                 callback_info("%s is trying to visit file %s without authorization!" % (self.info, fname))
                 self.msg = "%s is trying to visit file %s without authorization!" % (self.info, fname)
@@ -133,13 +134,13 @@ class DownloadWaiter(BaseWaiter):
 
             self.percent = bkpnt / local_size
 
-            begin_time = last_time = time()
             task = u"Download:%s" % path.split(fname)[1]
-            if self.recv().lower() != b"ready":
-                raise ConnectionAbortedError
-            
-            with open(local_file, "rb") as f:
+            with FileAccessLocker(local_file, "rb") as f:
+                begin_time = last_time = time()
                 f.seek(bkpnt)
+                if self.recv().lower() != b"ready":
+                    raise ConnectionAbortedError
+                
                 while self.is_conn:
                     row = f.read(TCP_BUFF_SIZE)
                     if len(row) == 0:

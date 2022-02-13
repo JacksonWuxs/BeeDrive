@@ -9,41 +9,46 @@ import re
 from .base import BaseWaiter
 from .constant import TCP_BUFF_SIZE
 from .utils import get_uuid, clean_path
+from .logger import callback_info
 
 
+COOKIE_DIR = clean_path(os.path.join(os.environ["TEMP"], ".beedrive/cookies"))
+if not os.path.exists(COOKIE_DIR):
+    os.makedirs(COOKIE_DIR)
 WELCOME = "Welcome to BeeDrive Cloud Service!"
 LOGIN = """<h2> Please Login</h2><form action="/" method="GET" target="_self" autocomplete="on"><p> User Name: <input type="text" name="user"><br></p><p> &nbsp; &nbsp;Password: <input type="password" name="passwd"> <input type="submit" value="Login"> </p></form>"""
 SOURCE_DIR = os.path.split(os.path.split(__file__)[0])[0]
-INDEX_PATH = clean_path(os.path.join(SOURCE_DIR + "/source/index.html"))
-ICON_PATH = clean_path(os.path.join(SOURCE_DIR + "/source/icon.ico"))
+INDEX_PATH = clean_path(os.path.join(SOURCE_DIR, "source/index.html"))
+ICON_PATH = clean_path(os.path.join(SOURCE_DIR, "source/icon.ico"))
 INDEX_PAGE = open(INDEX_PATH, "r", encoding="utf8").read()
 
 
 class HTTPWaiter(BaseWaiter):
-    def __init__(self, infos, proto, token, root, task, conn):
-        BaseWaiter.__init__(self, infos, proto, token, task, conn)
-        self.root = root
+    def __init__(self, infos, proto, token, roots, task, conn):
+        BaseWaiter.__init__(self, infos, proto, token, task, conn, roots)
         self.percent = 0.0
         self.msg = "Preparing to send file"
         self.start()
 
     def run(self):
         with self:
-            try:
-                if self.task == "login":
-                    self.response(self.do_login())
-                elif self.task == "get":
-                    if self.token == "/favicon.ico":
-                        self.response(open(ICON_PATH, "rb"))
-                    else:
-                        self.response(self.do_get())
-                elif self.task == "post":
-                    self.response(self.do_post())
-                else:
-                    self.response(INDEX_PAGE % (WELCOME, LOGIN))
-            finally:
-                time.sleep(5.0)
-                self.socket.close()
+            if self.is_conn:
+                try:
+                    if self.task == "index":
+                        self.response(INDEX_PAGE % (WELCOME, LOGIN))
+                    elif self.task == "login":
+                        self.response(self.do_login())
+                    elif self.task == "get":
+                        if self.token == "/favicon.ico":
+                            self.response(open(ICON_PATH, "rb"))
+                        else:
+                            self.response(self.do_get())
+                    elif self.task == "post":
+                        self.response(self.do_post())
+                finally:
+                    time.sleep(5.0)
+                    self.socket.close()
+                    self.clean_cookie()
 
     def response(self, content):
         if isinstance(content, str):
@@ -75,18 +80,18 @@ class HTTPWaiter(BaseWaiter):
                 content.close()
 
     def do_login(self):
+        socketname = self.socket.getpeername()
         if self.user not in self.userinfo:
+            callback_info("IP=%s login with a wrong user name" % socketname)
             return INDEX_PAGE % ("User name is incorrect!", LOGIN)
         if self.passwd != self.userinfo[self.user]:
+            callback_info("User=%s login with a wrong password" % self.user)
             return INDEX_PAGE % ("Password is incorrect!", LOGIN)
 
         self.token = get_uuid()
-        cookie_dir = clean_path(os.path.join(self.root, ".cookies"))
-        if not os.path.exists(cookie_dir):
-            os.makedirs(cookie_dir)
-        with open(os.path.join(cookie_dir, self.token), "wb") as f:
+        with open(os.path.join(COOKIE_DIR, self.token), "wb") as f:
             pickle.dump({"user": self.user, "deadline": time.time() + 600, "token": self.token}, f)
-        
+        callback_info("User=%s login success!" % self.user)
         page_content = self.render_list_dir(self.user)
         return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
 
@@ -101,7 +106,9 @@ class HTTPWaiter(BaseWaiter):
             page_content = self.render_list_dir(query)
             return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
         try:
-            return open(target, "rb")
+            f = open(target, "rb")
+            callback_info("User=%s download file: %s" % (self.user, target))
+            return f
         except OSError:
             page_content = "<h3>Sorry, cloud has no authorization to access the target file</h3>"
             return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
@@ -133,6 +140,7 @@ class HTTPWaiter(BaseWaiter):
             line = fd.readline()
             rest_len -= len(line)
             try:
+                callback_info("User=%s upload file: %s" % (self.user, fpath))
                 with open(fpath, "wb") as fw:
                     while rest_len > 0:
                         line = fd.readline()
@@ -194,8 +202,7 @@ class HTTPWaiter(BaseWaiter):
         return headers
 
     def check_cookie(self):
-        cookie_dir = os.path.abspath(os.path.join(self.root, ".cookies"))
-        token_path = os.path.join(cookie_dir, self.user)
+        token_path = os.path.join(COOKIE_DIR, self.user)
         if not os.path.exists(token_path):
             return INDEX_PAGE % ("Cookie is expired!", LOGIN)
         info = pickle.load(open(token_path, "rb"))
@@ -204,3 +211,10 @@ class HTTPWaiter(BaseWaiter):
             return INDEX_PAGE % ("Cookie is expired!", LOGIN)
         self.user, self.token = info["user"], info["token"]
         return True
+
+    def clean_cookie(self):
+        for cookie in os.listdir(COOKIE_DIR):
+            cookie_path = os.path.join(COOKIE_DIR, cookie)
+            cookie = pickle.load(open(cookie_path, "rb"))
+            if time.time() > cookie["deadline"]:
+                os.remove(cookie_path)

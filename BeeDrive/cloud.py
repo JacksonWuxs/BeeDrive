@@ -2,6 +2,7 @@ import os
 import sys
 import pickle
 import time
+import socket
 
 from multiprocessing import cpu_count
 
@@ -20,7 +21,7 @@ def parse_users(string):
 class ConfigLauncher:
     def __init__(self, config):
         self.config = config
-        self.hosts = [LocalRelay(proxy, config["rport"], config["sport"], config["pname"]) \
+        self.hosts = [LocalRelay(proxy, config["rport"], config["sport"], config["pname"], config["manager"] * config["worker"]) \
                            for proxy in config["proxy"]]
         self.server = LocalServer(users=config["users"], port=config["sport"],
                                   save_path=config["spath"], max_manager=config["manager"],
@@ -52,7 +53,7 @@ def cloud_gui():
               [sg.Text("Relay Port", **GUI_SETTING), sg.InputText(str(config.get("rport", "")), size=(33, 1))],
               [sg.Text("Cloud Name", **GUI_SETTING), sg.InputText(config.get("pname"), size=(33, 1))],
               [sg.Text("Root Path", **GUI_SETTING),
-               sg.InputText(config.get("spath"), size=(26, 1), key="tgt"),
+               sg.InputText(config.get("spath")[0], size=(26, 1), key="tgt"),
                sg.FolderBrowse("Fold", size=(4, 1), target="tgt", button_color="brown")],
               [sg.Text("Status", **GUI_SETTING),
                sg.Text("Stop", size=(14, 1), key="status", justification='left', text_color="black", background_color="white"),
@@ -73,13 +74,11 @@ def cloud_gui():
                                                 sport=int(rspn[1]),
                                                 spath=rspn["tgt"],
                                                 times=3153600,
-                                                sign=True,
-                                                crypt=True,
                                                 proxy=analysis_ip(rspn[2]),
                                                 manager=max(cpu_count(), 1),
                                                 worker=4,
                                                 pname=rspn[4],
-                                                rport=rspn[3]))
+                                                rport=[rspn[3]]))
             window["status"].update("Running")
             servers.start()
             RUNNING = True
@@ -93,15 +92,14 @@ def cloud_gui():
 
 def cmd_get_config(choose):
     if isinstance(choose, dict):
-        for key in ["users", "sport", "spath", "times", "sign",
-                    "crypt", "proxy", "pname", "rport"]:
+        for key in ["users", "sport", "spath", "times", "proxy", "pname", "rport"]:
             if key not in choose:
                 raise ValueError("Loaded custom configure doesn't support Cloud service.")
         return choose
 
     config = load_config("cloud")
     if choose == "check":
-        print("Cloud default configures:")
+        print("Cloud Default Configures:")
         for name, key in [("Users Info:", "users"),
                           ("Server Port:", "sport"),
                           ("Server Path:", "spath"),
@@ -116,26 +114,38 @@ def cmd_get_config(choose):
 
     if choose == "default" and len(config) > 0:
         return config
-
-    print("\nSetting default config for Cloud Drive")
-    print("\n[1] Drive Service")
+    fast_setup = input("Do you need a fast setup? [y|n]:").lower() == "y"
+    print("\nBeeDrive Cloud Setup")
     config["users"] = parse_users(input("1. Authorized users and passwords [user:passwd;user:passwd;...]:"))
-    config["sport"] = int(input("2. One port to launch the Server [1024-65535]:"))
-    config["spath"] = input("3. A path to save file on your computer: ")
-    config["times"] = float(input("4. How many minutes your want to keep the cloud alive? ")) * 60
-    config["manager"] = max(int(input("5. How many CPUs the service can use at most? ")), 1)
-    config["worker"] = max(int(input("6. How many tasks can each CPU accept at most? ")), 1)
-    config["sign"] = True
-    config["crypt"] = True
-    
-    if input("\n[2] Free NAT Service [y|n]: ").lower() == "y":
-        print("BeeDrive Official Free NAT at beedrive.kitgram.cn:8888")
-        config["proxy"] = input("7. Accessible Forwarding servers [ip:port;ip;port;...]: ")
-        config["proxy"] = [(addr.split(":")[0], int(addr.split(":")[1])) for addr in config["proxy"].split(";")]
-        config["pname"] = input("8. A nickname on the Forwarding server: ")
-        config["rport"] = int(input("9. One port to launch the local Proxy server: "))
+    config["sport"] = int(input("2. Port for cloud service [1024-65535]:"))
+    config["spath"] = input("3. Path(s) to store files: ").split(";")
+    if fast_setup:
+        config["times"], config["manager"], config["worker"] = 2 ** 29, 2, 32
+        config["proxy"], config["pname"] = [("beedrive.kitgram.cn", 8888)], os.environ["USERNAME"]
+        for port in range(int(config["sport"]) + 1, 65535):
+            try:
+                s = socket.socket()
+                s.bind(("0.0.0.0", port))
+                config["rport"] = port
+                s.close()
+                break
+            except OSError:
+                pass
+        else:
+            raise ValueError("Autosetup port for NAT service is failed")
+                
     else:
-        config["proxy"] = config["pname"] = config["rport"] = ""
+        config["times"] = float(input("4. Cloud serving duration [hours]:")) * 3600
+        config["manager"] = max(int(input("5. Maximum number of available CPU [1-%d]:" % cpu_count())), 1)
+        config["worker"] = max(int(input("6. How many tasks can each CPU accept at most? ")), 1)
+        if input("\nDo you need a Free NAT Service? [y|n]: ").lower() == "y":
+            print("BeeDrive Official Free NAT at beedrive.kitgram.cn:8888")
+            config["proxy"] = input("7. NAT service(s) address [ip:port;ip;port;...]: ")
+            config["proxy"] = [(addr.split(":")[0], int(addr.split(":")[1])) for addr in config["proxy"].split(";")]
+            config["pname"] = input("8. Nickname on NAT servers: ")
+            config["rport"] = int(input("9. Port for NAT service [1024-65535]: "))
+        else:
+            config["proxy"] = config["pname"] = config["rport"] = ""
     return save_config("cloud", **config)
 
 
@@ -144,7 +154,7 @@ def cloud_cmd(temp_port, temp_time, config):
     if temp_port:
         config["sport"] = int(temp_port)
     if temp_time:
-        config["times"] = int(temp_time) * 60
+        config["times"] = int(temp_time)
     servers = ConfigLauncher(config)
     servers.start()
     servers.wait()

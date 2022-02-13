@@ -5,6 +5,8 @@ from os import path, listdir
 
 
 def clean_path(root):
+    if isinstance(root, (tuple, list)):
+        return list(map(clean_path, root))
     return path.abspath(root).replace("\\", "/")
 
 
@@ -64,6 +66,8 @@ def disconnect(sock):
         try:
             sock.shutdown(2)
         except IOError:
+            pass
+        except OSError:
             pass
         sock.close()
     return sock

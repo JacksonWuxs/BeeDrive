@@ -2,17 +2,17 @@ import sys
 import os
 import pickle
 
+from .core.utils import clean_path
 from .core.logger import callback_info
 
 
 def init_config_path(service=None):
     is_window = sys.platform.startswith("win")
-    path = r"c://.ProgramData" if is_window else r"~/.config"
-    path = os.path.abspath(path + r"/BeeDrive")
+    path = clean_path(os.path.join(os.environ["APPDATA"], r"/BeeDrive"))
     if not os.path.exists(path):
         os.makedirs(path)
     if service:
-        return os.path.abspath("%s/%s.bee" % (path, service))
+        return clean_path("%s/%s.bee" % (path, service))
     return path
 
 

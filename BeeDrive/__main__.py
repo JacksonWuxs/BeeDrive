@@ -71,7 +71,9 @@ def main():
     if args.service == "proxy":
         if not args.arg1:
             error("Miss port argument. \nTry: python -m BeeDrive proxy 8889")
-        proxy.proxy_forever(args.arg1)
+        if not args.arg2:
+            args.arg2 = 16
+        proxy.proxy_forever(args.arg1, args.arg2)
 
     elif args.service == "cloud":
         if args.mode == "app":

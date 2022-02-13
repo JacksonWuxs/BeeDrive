@@ -4,7 +4,7 @@ from time import time, sleep
 from traceback import format_exc
 
 from .utils import clean_path
-from .base import BaseClient, BaseWaiter
+from .base import BaseClient, BaseWaiter, FileAccessLocker
 from .encrypt import file_md5
 from .constant import TCP_BUFF_SIZE, DISK_BUFF_SIZE, STAGE_DONE, STAGE_FAIL
 from .logger import callback_info, callback_processbar, callback_flush, callback_error
@@ -43,7 +43,7 @@ class UploadClient(BaseClient):
         with open(self.file, 'rb') as f:
             f.seek(bkpnt)
             while self.is_conn:
-                row = f.read(TCP_BUFF_SIZE)
+                row = f.read(DISK_BUFF_SIZE)
                 if len(row) == 0:
                     break
                 self.send(row)
@@ -64,15 +64,17 @@ class UploadClient(BaseClient):
             
 
 class UploadWaiter(BaseWaiter):
-    def __init__(self, infos, proto, token, root, task, conn):
-        BaseWaiter.__init__(self, infos, proto, token, task, conn)
-        self.root = clean_path(root)
+    def __init__(self, infos, proto, token, roots, task, conn):
+        BaseWaiter.__init__(self, infos, proto, token, task, conn, roots)
         self.percent = 0.0
         self.msg = "Preparing to recive file"
         self.start()
 
     def run(self):
         with self:
+            if not self.is_conn:
+                raise ConnectionResetError
+            
             # detail information of task
             self.msg = "Collecting file information"
             header = loads(self.recv())
@@ -80,15 +82,11 @@ class UploadWaiter(BaseWaiter):
             fpath = header['fold']
             fname = header['fname']
             fcode = header['fcode']
-            folder_path = clean_path(path.join(self.root, self.user, fpath))
+            folder_path = clean_path(path.join(self.roots[0], self.user, fpath))
 
             # create a folder if it doesn't exist
             if not path.isdir(folder_path):
-                try:
-                    makedirs(folder_path)
-                except FileExistsError:
-                    #it may happen when multi-threading uploading
-                    pass
+                makedirs(folder_path, exist_ok=True)
             fpath = path.join(folder_path, fname)
             
             # new file or breakpoint continuation
@@ -101,10 +99,11 @@ class UploadWaiter(BaseWaiter):
             self.percent = bkpnt / fsize if fsize > 0 else 1.0
 
             # Now begin to recive file
-            begin_time = last_time = time()
             task = u"Upload:%s" % fname
-            self.send(b"ready")
-            with open(fpath, mode, DISK_BUFF_SIZE) as f:
+            locker = FileAccessLocker(fpath, mode, DISK_BUFF_SIZE)
+            with locker as f:
+                begin_time = last_time = time()
+                self.send(b"ready")
                 while self.percent < 1.0:
                     text = self.recv()
                     if not text:
@@ -117,11 +116,29 @@ class UploadWaiter(BaseWaiter):
                         spent = max(0.001, time() - begin_time)
                         self.msg = callback_processbar(self.percent, fname, bkpnt/spent, spent)
 
-            bkpnt = path.getsize(fpath)
-            spent = max(0.001, time() - begin_time)
-            progress = bkpnt/fsize if fsize > 0 else 1.0
-            self.msg = callback_processbar(progress, task, bkpnt/spent, spent)
-            check = file_md5(fpath, bkpnt) == fcode
-            self.stage = STAGE_DONE if check else STAGE_FAIL
-            self.send(str(check))
-            callback_flush()
+                f.flush()
+                bkpnt = path.getsize(fpath)
+                spent = max(0.001, time() - begin_time)
+                progress = bkpnt/fsize if fsize > 0 else 1.0
+                self.msg = callback_processbar(progress, task, bkpnt/spent, spent)
+                check = file_md5(fpath, bkpnt) == fcode
+                self.stage = STAGE_DONE if check else STAGE_FAIL
+                self.send(str(check))
+                callback_flush()
+
+                if check:
+                    # do the copy process
+                    f = locker.reopen(mode="rb", buffering=DISK_BUFF_SIZE)
+                    for backup_addr in self.roots[1:]:
+                        backup_file = clean_path(path.join(backup_addr,
+                                                           self.user,
+                                                           header["fold"],
+                                                           header["fname"]))
+                        with FileAccessLocker(backup_file, "wb", -1) as fout:
+                            f.seek(0)
+                            while True:
+                                msg = f.read(DISK_BUFF_SIZE)
+                                if len(msg) == 0:
+                                    break
+                                fout.write(msg)
+

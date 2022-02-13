@@ -18,7 +18,8 @@ WAITERS = {"upload": UploadWaiter, "download": DownloadWaiter,
 
 class ExistMessager(BaseClient):
     def __init__(self, exit_code, port):
-        BaseClient.__init__(self, exit_code, "", ('127.0.0.1', port), 'exit')
+        BaseClient.__init__(self, exit_code, "", ('127.0.0.1', port), 'exit',
+                            3, True, None)
         self.start()
 
     def run(self):

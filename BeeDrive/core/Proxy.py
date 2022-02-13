@@ -3,7 +3,7 @@ from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
 from threading import Thread
 from time import sleep
 
-from .utils import build_connect
+from .utils import build_connect, disconnect
 from .logger import callback_info
 from .constant import TCP_BUFF_SIZE, END_PATTERN
 
@@ -14,16 +14,17 @@ class BaseProxyNode(Thread):
         self.daemon = True
         self.node = None
         self.routes = {}
-        self.isConn = False
+        self.histories = {}
+        self.is_conn = False
 
     def __enter__(self):
         self.build_server()
-        self.isConn = True
+        self.is_conn = True
 
     def __exit__(self, *args, **kwrds):
         self.remove_connect(self.node)
         self.node = None
-        self.isConn = False
+        self.is_conn = False
 
     @property
     def listen_sock(self):
@@ -32,52 +33,43 @@ class BaseProxyNode(Thread):
 
     def read_buff(self, sock):      
         try:
-            history = b""
-            while self.isConn:
-                try:
-                    message = sock.recv(TCP_BUFF_SIZE)
-                except OSError:
-                    message = b""
-                    
-                if len(message) == 0:
-                    self.remove_connect(sock)
-                    break
-                
-                texts = (history + message).split(END_PATTERN)
-                for element in texts[:-1]:
-                    if len(element) > 0:
-                        yield element + END_PATTERN
-                if not texts[-1]:
-                    break
-                history = texts[-1]
+            history = self.histories.get(sock, b"")
+            message = sock.recv(TCP_BUFF_SIZE)
+            if len(message) == 0:
+                raise ConnectionResetError
+            texts = (history + message).split(END_PATTERN)
+            for element in texts[:-1]:
+                if len(element) > 0:
+                    yield element + END_PATTERN
+            self.histories[sock] = texts[-1]
         except ConnectionResetError:
+            self.remove_connect(sock)
+        except OSError:
             self.remove_connect(sock)
 
     def remove_connect(self, sock):
         if sock is not None:
-            try:
-                sock.shutdown(2)
-            except EOFError:
-                pass
-            sock.close()
+            disconnect(sock)
+            if sock in self.histories:
+                del self.histories[sock]
             if sock in self.routes:
                 addr = self.routes.pop(sock)
                 del self.routes[addr]
                 callback_info("Remove connection %s" % addr.decode())
 
     def stop(self):
-        self.isConn = False
+        self.is_conn = False
 
 
 class HostProxy(BaseProxyNode):
-    def __init__(self, host_port):
+    def __init__(self, host_port, max_worker):
         BaseProxyNode.__init__(self)
         self.port = host_port
 
     def run(self):
         with self:
             callback_info("Public Host Proxy is launched at port %d" % self.port)
-            while self.isConn:
+            while self.is_conn:
                 for sock in select(self.listen_sock, [], [])[0]:
                     try:
                         self.handle_one_request(sock)
@@ -87,7 +79,7 @@ class HostProxy(BaseProxyNode):
     def accept(self):
         client, addr = self.node.accept()
         try:
-            request = client.recv(128)
+            request = client.recv(1024)
             if request.startswith(b'Proxy:'):
                 target = request.split(b"$", 1)[0][6:]
                 
@@ -125,8 +117,7 @@ class HostProxy(BaseProxyNode):
 
     def handle_one_request(self, sock):
         if sock == self.node:
-            self.accept()
-            return
+            return self.accept()
 
         for data in self.read_buff(sock):
             target, data = data.split(b"$", 1)
@@ -136,7 +127,7 @@ class HostProxy(BaseProxyNode):
 
 
 class LocalRelay(BaseProxyNode):
-    def __init__(self, master, host_port, server_port, nick_name):
+    def __init__(self, master, host_port, server_port, nick_name, max_worker):
         BaseProxyNode.__init__(self)
         self.server = ("127.0.0.1", int(server_port))
         self.nickname = (nick_name, int(server_port))
@@ -145,19 +136,22 @@ class LocalRelay(BaseProxyNode):
     def build_server(self):
         route = build_connect(*self.master)
         if not isinstance(route, str):
-            route.sendall(("Regist:%s" % (self.nickname,)).encode())
-            if route.recv(128) == b"TRUE":
-                self.routes[self.master] = route
-                callback_info("Registed at Proxy %s:%d with nickname %s:%d" % (route.getpeername()[0],
-                                                                               route.getpeername()[1],
-                                                                               self.nickname[0],
-                                                                               self.nickname[1]))
+            try:
+                route.sendall(("Regist:%s" % (self.nickname,)).encode())
+                if route.recv(128) == b"TRUE":
+                    self.routes[self.master] = route
+                    callback_info("Registed at Proxy %s:%d with nickname %s:%d" % (route.getpeername()[0],
+                                                                                   route.getpeername()[1],
+                                                                                   self.nickname[0],
+                                                                                   self.nickname[1]))
+            except ConnectionResetError:
+                pass
 
     def run(self):
         with self:
-            while self.isConn:
+            while self.is_conn:
                 sockets = self.listen_sock
-                while len(sockets) == 0 and self.isConn:
+                while len(sockets) == 0 and self.is_conn:
                     callback_info("Trying to reconnect %s" % (self.master,))
                     for sock in self.routes:
                         if isinstance(sock, socket):
@@ -165,7 +159,7 @@ class LocalRelay(BaseProxyNode):
                     sleep(30)
                     self.build_server()
                     sockets = self.listen_sock
-                if not self.isConn:
+                if not self.is_conn:
                     break
                 for sock in select(sockets, [], [])[0]:
                     try:

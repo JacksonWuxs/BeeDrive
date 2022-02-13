@@ -12,8 +12,7 @@ from ..constant import (STAGE_INIT, STAGE_PRE, STAGE_RUN,
 
 
 class BaseClient(BaseWorker):
-    def __init__(self, user, passwd, target, task,
-                 retry=3, encrypt=True, proxy=None):
+    def __init__(self, user, passwd, target, task, retry, encrypt, proxy):
         self.msg = self.stage = STAGE_INIT
         BaseWorker.__init__(self, None, encrypt)
         self.proxy = [] if proxy is None else proxy
@@ -26,12 +25,12 @@ class BaseClient(BaseWorker):
         
     def __enter__(self):
         self.msg = "Connecting to cloud"
-        self.socket = self.build_connect()
+        self.build_connect()
         if self.socket:
             self.build_pipeline(self.passwd)
             self.verify_connect()
-        if self.peer:
-            self.active()
+            if self.peer or self.task == "exit":
+                self.active()
 
     def prepare(self):
         raise NotImplemented()
@@ -46,7 +45,7 @@ class BaseClient(BaseWorker):
             conn = build_connect(ip, port)
             if isinstance(conn, str):
                 continue
-            
+            print("measuring connection")
             # whether connect to the proxy or not
             if (ip, port) != self.target:
                 source = self.info.code #str(self.socket.getsockname())
@@ -57,11 +56,12 @@ class BaseClient(BaseWorker):
                     continue
                 callback_info('- using proxy %s:%s to connect target %s:%d' % (ip, port, self.target[0], self.target[1]))
                 self.use_proxy = True
+            self.socket = conn
             return conn
         
         self.msg = u"Error: cannot find out target %s:%s" % self.target
         callback_info(self.msg)
-        return False
+        return 
 
     def verify_connect(self):
         # speak out who am I and what I need
@@ -95,6 +95,8 @@ class BaseClient(BaseWorker):
         kwrds = self.prepare()
         for retry in range(1, 1 + self.max_retry):
             with self:
+                if not self.is_conn:
+                    continue
                 try:
                     if self.peer:
                         self.stage = STAGE_RUN
@@ -109,7 +111,7 @@ class BaseClient(BaseWorker):
                     pass
                 except TimeoutError:
                     pass
-            wait = 10 * retry # add 10 seconds per retry
+            wait = 30
             self.stage = STAGE_RETRY
             self.msg = "Retry connection in %d seconds" % wait
             callback_info("Retry connection in %d seconds" % wait)
