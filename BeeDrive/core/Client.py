@@ -1,9 +1,8 @@
 import os
 import time
-from json import dumps, loads
 
 from .base import BaseManager
-from .constant import Done, NewTask, Stop, STAGE_DONE, STAGE_FAIL
+from .constant import Done
 from .utils import list_files, clean_path
 from .uploader import UploadClient
 from .downloader import DownloadClient
@@ -15,10 +14,13 @@ class ClientManager(BaseManager):
         self.launch()
 
     def launch_task(self, task, **kwrds):
+        begin = time.time()
         if task == "download":
             self.download(**kwrds)
         elif task == "upload":
             self.upload(**kwrds)
+        self.send(b"Finished task in %.0f seconds" % (time.time() - begin))
+        self.send(Done)
 
     def download(self, user, passwd, cloud, source, root, retry, encrypt, proxy, **kwrds):
         if isinstance(source, str):
@@ -29,7 +31,6 @@ class ClientManager(BaseManager):
             self.pool[client.info.uuid] = client
             self.update_worker_status()
         self.wait_until_empty(i, len(source))
-        self.send(Done)
 
     def upload(self, user, passwd, cloud, source, retry, encrypt, proxy, **kwrds):
         source = clean_path(source)
@@ -45,7 +46,6 @@ class ClientManager(BaseManager):
             self.pool[client.info.uuid] = client
             self.update_worker_status()
         self.wait_until_empty(i, len(files))
-        self.send(Done)
 
     def wait_until_free(self, done, total):
         while self.pool_is_full():

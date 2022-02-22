@@ -6,9 +6,8 @@ import time
 from .worker import BaseWorker
 from .idcard import IDCard
 from ..utils import disconnect, clean_path, get_uuid
-from ..constant import TCP_BUFF_SIZE, END_PATTERN
+from ..constant import TCP_BUFF_SIZE
 from ..encrypt import SUPPORT_AES, AESCoder
-from ..logger import callback_info
 
 
 LOGIN = re.compile("/\?user=(.*)&passwd=(.*)")

@@ -1,13 +1,12 @@
-from os import path, makedirs
-from pickle import dumps, loads
-from time import time
-from traceback import format_exc
+import os
+import pickle
+import time
 
 from .utils import clean_path
 from .base import BaseClient, BaseWaiter, FileAccessLocker
 from .encrypt import file_md5
-from .constant import TCP_BUFF_SIZE, DISK_BUFF_SIZE, STAGE_DONE, STAGE_FAIL
-from .logger import callback_info, callback_processbar, callback_flush, callback_error
+from .constant import DISK_BUFF_SIZE, STAGE_DONE, STAGE_FAIL
+from .logger import callback, processbar, flush
 
 
 class UploadClient(BaseClient):
@@ -20,47 +19,45 @@ class UploadClient(BaseClient):
         
     def prepare(self):
         self.msg = "Collecting file information"
-        fname = path.split(self.file)[1]
-        fsize = path.getsize(self.file)
+        fname = os.path.split(self.file)[1]
+        fsize = os.path.getsize(self.file)
         fcode = file_md5(self.file, fsize)
         return {"fname": fname, "fsize": fsize, "fcode": fcode}
 
     def process(self, fname, fcode, fsize):
         self.msg = "Verifying task progress"
-        self.send(dumps({'fname': fname, 'fsize': fsize,
-                         'fcode': fcode, 'fold': self.fold}))
-        info = loads(self.recv())
+        self.send(pickle.dumps({'fname': fname, 'fsize': fsize,
+                                'fcode': fcode, 'fold': self.fold}))
+        msg = self.recv()
+        info = pickle.loads(msg)
         bkpnt = 0
         if file_md5(self.file, info["size"]) == info["code"]:
             bkpnt = info["size"]
         self.send(str(bkpnt).encode())
         
         task = "Upload:%s" % fname
-        begin_time = last_time = time()
+        begin_time = last_time = time.time()
         if self.recv().lower() != b"ready":
             raise ConnectionAbortedError
-            
-        with open(self.file, 'rb') as f:
+        with FileAccessLocker(self.file, "rb", DISK_BUFF_SIZE) as f:
             f.seek(bkpnt)
             while self.is_conn:
                 row = f.read(DISK_BUFF_SIZE)
                 if len(row) == 0:
                     break
                 self.send(row)
-                if time() - last_time >= 0.1:
+                if time.time() - last_time >= 0.1:
                     bkpnt = f.tell()
                     self.percent = bkpnt / fsize
-                    spent_time = max(0.1, time() - begin_time)
-                    self.msg = callback_processbar(
-                                    self.percent, task,
-                                    bkpnt / spent_time,
-                                    spent_time)
-                    last_time = time()
+                    last_time = time.time()
+                    spent_time = max(0.1, last_time - begin_time)
+                    self.msg = processbar(self.percent, task,
+                                          bkpnt / spent_time, spent_time)
             bkpnt = f.tell()
-            spent_time = max(0.001, time() - begin_time)
+            spent_time = max(0.001, time.time() - begin_time)
             self.percent = bkpnt / fsize if fsize > 0 else 1.0
-            self.msg = callback_processbar(self.percent, task, fsize/spent_time, spent_time)
-        return eval(self.recv().decode())
+            self.msg = processbar(self.percent, task, fsize/spent_time, spent_time)
+        return eval(self.recv().decode("utf8"))
             
 
 class UploadWaiter(BaseWaiter):
@@ -77,22 +74,22 @@ class UploadWaiter(BaseWaiter):
             
             # detail information of task
             self.msg = "Collecting file information"
-            header = loads(self.recv())
+            header = pickle.loads(self.recv())
             fsize = header['fsize']
             fpath = header['fold']
             fname = header['fname']
             fcode = header['fcode']
-            folder_path = clean_path(path.join(self.roots[0], self.user, fpath))
+            folder_path = clean_path(os.path.join(self.roots[0], self.user, fpath))
 
             # create a folder if it doesn't exist
-            if not path.isdir(folder_path):
-                makedirs(folder_path, exist_ok=True)
-            fpath = path.join(folder_path, fname)
+            if not os.path.isdir(folder_path):
+                os.makedirs(folder_path, exist_ok=True)
+            fpath = os.path.join(folder_path, fname)
             
             # new file or breakpoint continuation
-            current_size = path.getsize(fpath) if path.exists(fpath) else 0
-            current_code = file_md5(fpath, current_size) if path.exists(fpath) else ""
-            self.send(dumps({"size": current_size, "code": current_code}))
+            current_size = os.path.getsize(fpath) if os.path.exists(fpath) else 0
+            current_code = file_md5(fpath, current_size) if os.path.exists(fpath) else ""
+            self.send(pickle.dumps({"size": current_size, "code": current_code}))
             bkpnt = int(self.recv())
             
             mode = 'wb' if bkpnt == 0 else 'ab+'   
@@ -102,38 +99,38 @@ class UploadWaiter(BaseWaiter):
             task = u"Upload:%s" % fname
             locker = FileAccessLocker(fpath, mode, DISK_BUFF_SIZE)
             with locker as f:
-                begin_time = last_time = time()
+                begin_time = last_time = time.time()
                 self.send(b"ready")
                 while self.percent < 1.0:
                     text = self.recv()
                     if not text:
-                        callback_info("Connection is broken.")
+                        callback("Connection is broken.", "error")
                         break
                     f.write(text)
                     bkpnt += len(text)
                     self.percent = bkpnt / fsize
-                    if time() - last_time >= 0.1:
-                        spent = max(0.001, time() - begin_time)
-                        self.msg = callback_processbar(self.percent, fname, bkpnt/spent, spent)
+                    if time.time() - last_time >= 0.1:
+                        spent = max(0.001, time.time() - begin_time)
+                        self.msg = processbar(self.percent, fname, bkpnt/spent, spent)
 
                 f.flush()
-                bkpnt = path.getsize(fpath)
-                spent = max(0.001, time() - begin_time)
+                bkpnt = os.path.getsize(fpath)
+                spent = max(0.001, time.time() - begin_time)
                 progress = bkpnt/fsize if fsize > 0 else 1.0
-                self.msg = callback_processbar(progress, task, bkpnt/spent, spent)
+                self.msg = processbar(progress, task, bkpnt/spent, spent)
                 check = file_md5(fpath, bkpnt) == fcode
                 self.stage = STAGE_DONE if check else STAGE_FAIL
-                self.send(str(check))
-                callback_flush()
+                self.send(str(check).encode("utf8"))
+                flush()
 
                 if check:
                     # do the copy process
                     f = locker.reopen(mode="rb", buffering=DISK_BUFF_SIZE)
                     for backup_addr in self.roots[1:]:
-                        backup_file = clean_path(path.join(backup_addr,
-                                                           self.user,
-                                                           header["fold"],
-                                                           header["fname"]))
+                        backup_file = clean_path(os.path.join(backup_addr,
+                                                              self.user,
+                                                              header["fold"],
+                                                              header["fname"]))
                         with FileAccessLocker(backup_file, "wb", -1) as fout:
                             f.seek(0)
                             while True:

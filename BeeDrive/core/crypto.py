@@ -78,11 +78,9 @@ class AESCoder:
         return unpad(AES.new(self.passwd, AES.MODE_CBC, IV).decrypt(text), self.blocksize)
 
 
-aes_coder = AESCoder(passwd=b"mypasswod")
-md5_coder = MD5Coder(passwd=b"mypasswd")
-
-
 if __name__ == '__main__':
+    aes_coder = AESCoder(passwd=b"mypasswod")
+    md5_coder = MD5Coder(passwd=b"mypasswd")
     data = b'{"uuid": "50bebb1a-ca04-11ea-9ae7-00e04c360011", "name": "JacksonWoo", "mac": "e0-4c-36-00-11", "crypto": true, "sign": true, "code": "a846c719a5ad6adc3b3d2fe89f3070ab"}'
     assert md5_coder.decrypt(aes_coder.decrypt(aes_coder.encrypt(md5_coder.encrypt(data)))) == data
     

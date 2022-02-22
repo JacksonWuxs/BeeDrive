@@ -1,13 +1,14 @@
 import pickle
 import time
+import socket
 
 from .idcard import IDCard
 from .worker import BaseWorker
 from ..utils import build_connect, disconnect
-from ..logger import callback_info, callback_flush
+from ..logger import callback, flush
 from ..encrypt import SUPPORT_AES, AESCoder
 from ..constant import END_PATTERN, TCP_BUFF_SIZE, VERSION
-from ..constant import (STAGE_INIT, STAGE_PRE, STAGE_RUN,
+from ..constant import (STAGE_INIT, STAGE_PRE, STAGE_RUN, RETRY_WAIT,
                         STAGE_DONE, STAGE_FAIL, STAGE_RETRY)
 
 
@@ -54,13 +55,14 @@ class BaseClient(BaseWorker):
                 rspn = conn.recv(TCP_BUFF_SIZE)
                 if rspn != b"TRUE":
                     continue
-                callback_info('- using proxy %s:%s to connect target %s:%d' % (ip, port, self.target[0], self.target[1]))
+                callback('Connect target %s:%d using proxy %s:%d' % (self.target[0], self.target[1],
+                                                                     ip, port))
                 self.use_proxy = True
             self.socket = conn
             return conn
         
-        self.msg = u"Error: cannot find out target %s:%s" % self.target
-        callback_info(self.msg)
+        self.msg = u"cannot find out target %s:%s" % self.target
+        callback(self.msg, "error")
         return 
 
     def verify_connect(self):
@@ -80,7 +82,7 @@ class BaseClient(BaseWorker):
         try:
             rspn = self.socket.recv(1024)
             if rspn.startswith(b"ERROR"):
-                callback_info(rspn.decode())
+                callback(rspn.decode(), "error")
                 disconnect(self.socket)
                 return
             rspn = rspn.replace(END_PATTERN, b"")
@@ -101,7 +103,7 @@ class BaseClient(BaseWorker):
                     if self.peer:
                         self.stage = STAGE_RUN
                         result = self.process(**kwrds)
-                        callback_flush()
+                        flush()
                         if result is True:
                             self.stage = STAGE_DONE
                             return
@@ -109,11 +111,14 @@ class BaseClient(BaseWorker):
                     pass
                 except ConnectionAbortedError:
                     pass
+                except EOFError:
+                    pass
                 except TimeoutError:
                     pass
-            wait = 30
+                except socket.timeout:
+                    pass
             self.stage = STAGE_RETRY
-            self.msg = "Retry connection in %d seconds" % wait
-            callback_info("Retry connection in %d seconds" % wait)
-            time.sleep(wait)
+            self.msg = "Retry connection in %d seconds" % RETRY_WAIT
+            callback(self.msg, "info")
+            time.sleep(RETRY_WAIT)
         self.stage = STAGE_FAIL

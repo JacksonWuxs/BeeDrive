@@ -5,7 +5,7 @@ import time
 import os
 
 from .utils import build_connect, disconnect, read_until, get_uuid, clean_path
-from .logger import callback_info
+from .logger import callback
 from .constant import TCP_BUFF_SIZE, END_PATTERN, RETRY_WAIT
 
 
@@ -71,7 +71,14 @@ class BaseProxyNode(threading.Thread):
                 del self.routes[addr]
                 del self.histories[sock]
                 del self.connects[sock]
-                callback_info("Remove connection %s" % addr.decode())
+                callback("Remove connection %s" % addr.decode())
+
+    def process(self, sock):
+        try:
+            self.handle_request(sock)
+        except Exception as e:
+            callback("Error: %s" % e)
+            self.remove_connect(sock)
 
     def _register(self, nickname, client, protocol):
         self.routes[nickname] = client
@@ -91,11 +98,11 @@ class HostProxy(BaseProxyNode):
     def run(self):
         while True:
             with self:
-                callback_info("Public Host Proxy is launched at port %d" % self.port)
+                callback("NAT server is working at 0.0.0.0:%d" % self.port)
                 while self.is_conn:
                     try:
                         for sock in select.select(self.listen_sock, [], [])[0]:
-                            self.handle_request(sock)
+                            self.process(sock)
                     except OSError:
                         pass
             if not self.is_conn:
@@ -111,7 +118,7 @@ class HostProxy(BaseProxyNode):
                 self.routes[target].sendall(nickname + b"$" + END_PATTERN)
                 self._register(nickname, client, 0)
                 target = target.decode("utf8").split(":")
-                callback_info("Forward BEE %s:%s to %s:%s" % (addr[0], addr[1], target[0], target[1]))
+                callback("Forward BEE %s:%s to %s:%s" % (addr[0], addr[1], target[0], target[1]))
             else:
                 client.sendall(b'FALSE')
                 
@@ -122,7 +129,7 @@ class HostProxy(BaseProxyNode):
                 self._register(nickname, client, 0)
                 self.registed.add(nickname)
                 nickname, real_port = nickname.decode("utf8").split(":")
-                callback_info("Registration %s:%s with Nickname=%s" % (addr[0], real_port, nickname))
+                callback("Registration %s:%s with Nickname=%s" % (addr[0], real_port, nickname))
             else:
                 client.sendall(b"FALSE")
 
@@ -138,25 +145,19 @@ class HostProxy(BaseProxyNode):
         self.routes["PROXY"] = self.node
 
     def handle_request(self, sock):
-        try:
-            if sock == self.node:
-                return self.accept()
+        if sock == self.node:
+            return self.accept()
 
-            elif self.connects[sock] == 0:
-                for data in self.read_buff(sock):
-                    target, data = data.split(b"$", 1)
-                    if target.startswith(b"(HTTP)"):
-                        data = data[:-len(END_PATTERN)]
-                    self.routes[target].sendall(data)
-            else:
-                tgt, pattern = self.connects[sock]
-                info = sock.recv(TCP_BUFF_SIZE)
-                print(info)
-                self.routes[tgt].sendall(pattern % info)
-                
-        except Exception as e:
-            callback_info("Error: %s" % e)
-            self.remove_connect(sock)
+        elif self.connects[sock] == 0:
+            for data in self.read_buff(sock):
+                target, data = data.split(b"$", 1)
+                if target.startswith(b"(HTTP)"):
+                    data = data[:-len(END_PATTERN)]
+                self.routes[target].sendall(data)
+        else:
+            tgt, pattern = self.connects[sock]
+            info = sock.recv(TCP_BUFF_SIZE)
+            self.routes[tgt].sendall(pattern % info)
 
     def handle_http(self, request, addr, src):
         method, target, protocol = request.split(b" ")
@@ -168,7 +169,7 @@ class HostProxy(BaseProxyNode):
             target_file = b"/".join(target[1:])
             nickname = b"(HTTP)" + get_uuid().encode("utf8")
             tgt = self.routes[target[0]]
-            callback_info("Forward HTTP %s:%s to %s" % (addr[0], addr[1], target[0].decode("utf8")))
+            callback("Forward HTTP %s:%s to %s" % (addr[0], addr[1], target[0].decode("utf8")))
             # Step-1: tell the local proxy to launch a forwarding
             tgt.sendall(nickname + b"$" + END_PATTERN)
             # Step-2: send query line
@@ -207,17 +208,17 @@ class LocalRelay(BaseProxyNode):
             if route.recv(128) == b"TRUE":
                 self.routes[self.master] = route
                 self.histories[route] = b""
-                callback_info("Registed at Proxy %s:%d with nickname %s:%d" % (route.getpeername()[0],
-                                                                               route.getpeername()[1],
-                                                                               self.nickname[0],
-                                                                               self.nickname[1]))
+                callback("Registed at Proxy %s:%d with nickname %s:%d" % (route.getpeername()[0],
+                                                                          route.getpeername()[1],
+                                                                          self.nickname[0],
+                                                                          self.nickname[1]))
 
     def run(self):
         with self:
             while self.is_conn:
                 sockets = self.listen_sock
                 while len(sockets) == 0 and self.is_conn:
-                    callback_info("Trying to reconnect %s" % (self.master,))
+                    callback("Trying to reconnect %s" % (self.master,))
                     disable = [s for s in self.routes if isinstance(s, socket.socket)]
                     for s in disable:
                         self.remove_connect(s)
@@ -227,25 +228,21 @@ class LocalRelay(BaseProxyNode):
                 if not self.is_conn:
                     break
                 for sock in select.select(sockets, [], [])[0]:
-                    try:
-                        self.handle_one_request(sock)
-                    except:
-                        self.remove_connect(sock)
+                    self.process(sock)
                     
-    def handle_one_request(self, sock):
+    def handle_request(self, sock):
         peername = sock.getpeername()
         # message from master proxy
         if peername == self.master:
             for data in self.read_buff(sock):
                 taskid, data = data.split(b"$", 1)
-                
-                if taskid not in self.routes:
+                try:
+                    self.routes[taskid].sendall(data)
+                except KeyError:
                     conn = build_connect(*self.server)
                     if isinstance(conn, str):
                         continue
                     self._register(taskid, conn, 0)
-                else:
-                    self.routes[taskid].sendall(data)
 
         # message from the local server   
         elif peername == self.server:

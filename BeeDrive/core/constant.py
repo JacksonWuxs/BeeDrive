@@ -1,3 +1,6 @@
+import re
+
+
 STAGE_INIT = "Init"
 STAGE_PRE = "Prepare"
 STAGE_RUN = "Run"
@@ -7,13 +10,14 @@ STAGE_FAIL = "Fail"
 STAGE_RETRY = "Retry"
 
 END_PATTERN = b'___@@@___'
+END_PATTERN_COMPILE = re.compile(END_PATTERN)
 
 TCP_BUFF_SIZE = 65535    # 64 KB
 DISK_BUFF_SIZE = 262140  # 256 KB
 RETRY_WAIT = 60          # 1 min
 
-VERSION = "0.2.1.9"
-DATE = 20220208
+VERSION = "0.3.0a"
+DATE = 20220222
 
 DEATH = 0
 ALIVE = 1

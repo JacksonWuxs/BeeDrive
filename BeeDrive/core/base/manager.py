@@ -3,7 +3,7 @@ import sys
 import multiprocessing
 
 
-from ..constant import DEATH, IsFull, NewTask, KillTask, Update, Stop, Done, STAGE_DONE
+from ..constant import IsFull, NewTask, KillTask, Update, Stop, Done
 
 
 # following code is used to support multiprocessing on Windows .exe format

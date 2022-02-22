@@ -1,15 +1,12 @@
-from os import path, makedirs
-from time import sleep, time
-from json import loads, dumps
-from multiprocessing import cpu_count
+import time
 
 from .base import BaseServer, BaseClient, BaseManager
-from .constant import IsFull, NewTask, KillTask, Update, Stop, ALIVE
-from .utils import build_connect, get_uuid, clean_path
+from .constant import IsFull, NewTask, Stop
+from .utils import get_uuid, clean_path
 from .uploader import UploadWaiter
 from .downloader import DownloadWaiter
 from .browser import HTTPWaiter
-from .logger import callback_info, callback_flush
+from .logger import callback, flush
 
 
 WAITERS = {"upload": UploadWaiter, "download": DownloadWaiter,
@@ -56,7 +53,6 @@ class LocalServer(BaseServer):
         self.build_server(self.max_worker * self.max_manager)
         self.active()
         self.add_new_manager()
-        callback_info("Server has been launched at %s:%s" % self.target)
         
     def add_new_task(self, proto, token, task, sock):
         while True:
@@ -82,23 +78,19 @@ class LocalServer(BaseServer):
 
     def run(self):
         with self:
+            callback("Server has been launched at %s:%s" % self.target)
             while self.is_conn:
                 task, token, protocol, sock = self.accept_connect()
                 if task == "exit" and token == self.exit_code:
                     break
                 elif task and protocol:
                     self.add_new_task(protocol, token, task, sock)
+        callback("Server has been closed successfully")
 
     def stop(self):
         exits = ExistMessager(self.exit_code, self.port)
         for manager in self.managers:
             manager.join_do(Stop)
         exits.join()
-        callback_info("Server has been closed successfully")
-
-    def update_schedule_status(self):
-        for manager in self.managers:
-            for uuid, state, stage, percent, msg in manager.echo(Update):
-                pass
 
                         

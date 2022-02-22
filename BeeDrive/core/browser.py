@@ -4,12 +4,11 @@ import os
 import itertools
 import socketserver
 import shutil
-import re
 
 from .base import BaseWaiter
 from .constant import TCP_BUFF_SIZE, END_PATTERN
 from .utils import get_uuid, clean_path
-from .logger import callback_info
+from .logger import callback
 
 
 COOKIE_DIR = clean_path(os.path.join(os.environ["TEMP"], ".beedrive/cookies"))
@@ -52,6 +51,9 @@ class HTTPWaiter(BaseWaiter):
                     self.socket.close()
                     self.clean_local_cookie()
 
+    def send_end(self):
+        self.socket.sendall(END_PATTERN)
+
     def response(self, content):
         if isinstance(content, str):
             content = content.encode("utf-8")
@@ -71,10 +73,12 @@ class HTTPWaiter(BaseWaiter):
             if isinstance(content, bytes):
                 for i in range(len(content) // TCP_BUFF_SIZE + 1):
                     seg = content[i * TCP_BUFF_SIZE: (i+1) * TCP_BUFF_SIZE]
-                    self.socket.sendall(seg + END_PATTERN)
+                    self.socket.sendall(seg)
+                    self.send_end()
             else:
                 for line in content:
-                    self.socket.sendall(line + END_PATTERN)
+                    self.socket.sendall(line)
+                    self.send_end()
                 content.close()
         else:
             if isinstance(content, bytes):
@@ -94,16 +98,16 @@ class HTTPWaiter(BaseWaiter):
     def do_login(self):
         socketname = self.socket.getpeername()
         if self.user not in self.userinfo:
-            callback_info("IP=%s login with a wrong user name" % str(socketname))
+            callback("IP=%s login with a wrong user name" % str(socketname))
             return INDEX_PAGE % ("User name is incorrect!", LOGIN % self.redirect)
         if self.passwd != self.userinfo[self.user]:
-            callback_info("User=%s login with a wrong password" % self.user)
+            callback("User=%s login with a wrong password" % self.user)
             return INDEX_PAGE % ("Password is incorrect!", LOGIN % self.redirect)
 
         self.token = get_uuid()
         with open(os.path.join(COOKIE_DIR, self.token), "wb") as f:
             pickle.dump({"user": self.user, "deadline": time.time() + 600, "token": self.token}, f)
-        callback_info("User=%s login success!" % self.user)
+        callback("User=%s login success!" % self.user)
         page_content = self.render_list_dir(self.user)
         return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
 
@@ -119,7 +123,7 @@ class HTTPWaiter(BaseWaiter):
             return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
         try:
             f = open(target, "rb")
-            callback_info("User=%s download file: %s" % (self.user, target))
+            callback("User=%s download file: %s" % (self.user, target))
             return f
         except OSError:
             page_content = "<h3>Sorry, cloud has no authorization to access the target file</h3>"
@@ -156,7 +160,7 @@ class HTTPWaiter(BaseWaiter):
             
             try:
                 with open(fpath, "wb") as fw:
-                    callback_info("User=%s upload file: %s" % (self.user, fpath))
+                    callback("User=%s upload file: %s" % (self.user, fpath))
                     while rest_len > 0:
                         line = fd.read(TCP_BUFF_SIZE)
                         rest_len -= len(line)
@@ -167,7 +171,7 @@ class HTTPWaiter(BaseWaiter):
             except IOError:
                 break
         page_content = self.render_list_dir(root)
-        callback_info("Totally uploaded %d files by %s" % (files, self.user))
+        callback("Totally uploaded %d files by %s" % (files, self.user))
         return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
 
 

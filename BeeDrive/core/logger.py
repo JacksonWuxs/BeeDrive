@@ -1,25 +1,27 @@
-from time import localtime, asctime
-from sys import stdout
+import sys
+import time
 
 
 PROCESS_BAR_PATTERN = '\r{}: {} {:4.1f}% | {} | {}'
-OUTPUTS = [stdout]
+LOGGING_LEVELS = {"DEBUG": 0, "WARN": 1, "INFO": 2, "ERROR": 3}
+LOGGERS = {sys.stdout: 0}
 
 
-def printf(msg="", end="\n", flush=False):
-    for output in OUTPUTS:
-        print(msg, end=end, file=output, flush=flush)
+def printf(msg="", end="\n", flush=False, verbals=0):
+    for pipe, level in LOGGERS.items():
+        if verbals >= level:
+            print(msg, end=end, file=pipe, flush=flush)
         
 
-def callback_info(msg):
-    if "\n" in msg:
-        msg = "\n" + msg
-    info = '[%s] INFO: %s' % (asctime(localtime()), msg)
-    printf(info)
+def callback(msg, level="INFO"):
+    level = level.upper()
+    assert level in LOGGING_LEVELS
+    info = '[%s] %s: %s' % (time.asctime(time.localtime()), level, msg)
+    printf(info, verbals=LOGGING_LEVELS[level])
     return info
 
 
-def callback_processbar(percent, task, speed, spent):
+def processbar(percent, task, speed, spent):
     if speed < 1048576:
         speed_flag = '%.2fKB/s' % (speed / 1024)
     elif speed < 1073741824:
@@ -39,16 +41,9 @@ def callback_processbar(percent, task, speed, spent):
     
     bar = PROCESS_BAR_PATTERN.format(task, '=' * int(percent * 50) + " " * int((1.0 - percent) * 50),
                                      percent*100, speed_flag, spent_flag)
-    printf(bar, end="", flush=True)
+    printf(bar, end="", flush=True, verbals=2)
     return bar
 
 
-def callback_flush():
-    printf()
-
-
-def callback_error(msg, code, name=""):
-    info = '[%s] ERROR-%d: %s -> %s\r' % (asctime(localtime()), code, msg, name)
-    printf(info)
-    return info
-
+def flush():
+    printf(verbals=max(LOGGING_LEVELS.values()))

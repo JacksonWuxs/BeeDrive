@@ -3,7 +3,7 @@ import os
 import pickle
 
 from .core.utils import clean_path
-from .core.logger import callback_info
+from .core.logger import callback
 
 
 def init_config_path(service=None):
@@ -19,7 +19,7 @@ def init_config_path(service=None):
 def save_config(service, **config):
     path = init_config_path(service)
     pickle.dump(config, open(path, mode="wb"))
-    callback_info("Update BeeDrive-%s default config at %s" % (service, path))
+    callback("Update BeeDrive-%s default config at %s" % (service, path))
     return config
 
 

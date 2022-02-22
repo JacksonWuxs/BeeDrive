@@ -4,7 +4,7 @@ import os
 import sys
 
 from .core.Client import ClientManager
-from .core.constant import NewTask, Stop, Done, STAGE_FAIL, STAGE_DONE
+from .core.constant import NewTask, Stop, Done
 from .core.utils import analysis_ip, resource_path
 from .configures import save_config, load_config
 
@@ -43,7 +43,7 @@ def cmd_get_config(choose):
     if fast_setup:
         config["proxy"] = [("127.0.0.1", 8888), ("beedrive.kitgram.cn", 8888)]
         config["root"] = config.get("root", "./")
-        config["encrypt"], config["pool"], config["retry"] = True, 4, 3
+        config["encrypt"], config["pool"], config["retry"] = True, 2, 3
     else:
         config["root"] = input("4. Path to store files: ")
         config["proxy"] = analysis_ip(input("5. NAT service(s) addresses [ip:port;ip;port;...]: "))
@@ -104,7 +104,8 @@ def upload_gui():
                              passwd=rspn[1],
                              cloud=analysis_ip(rspn[2])[0],
                              proxy=analysis_ip(rspn[3]),
-                             pool=4,
+                             pool=2,
+                             retry=3,
                              root=config.get("root", "./"),
                              encrypt=True)
         config["source"] = rspn["tgt"]
@@ -142,7 +143,8 @@ def download_gui():
                              cloud=analysis_ip(rspn[2])[0],
                              proxy=analysis_ip(rspn[3]),
                              root=rspn["path"],
-                             pool=4,
+                             pool=2,
+                             retry=3,
                              encrypt=True)
         config["source"] = rspn[4]
         if gui_run(config, window, "download") in ("Cancel", None):

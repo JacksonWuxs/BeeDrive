@@ -1,12 +1,4 @@
-import pickle
-
-from os import path
-
-from .idcard import IDCard
 from .worker import BaseWorker
-from ..logger import callback_error
-from ..constant import END_PATTERN, TCP_BUFF_SIZE
-from ..encrypt import AESCoder, SUPPORT_AES
 from ..utils import disconnect, read_until
 
 

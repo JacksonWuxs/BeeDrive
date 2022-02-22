@@ -1,5 +1,4 @@
-from os import path
-from hashlib import md5
+import hashlib
 
 from .constant import IV, BLOCK_SIZE
 
@@ -22,43 +21,43 @@ __all__ = ['file_md5', 'AESCoder', 'MD5Coder']
 
 
 
-def file_md5(fpath, breakpoint=0):
-    coder = md5()
+def file_md5(fpath, breakpoint=None):
+    coder = hashlib.md5()
     total_size = 0
+    if breakpoint is None:
+        breakpoint = float("inf")
     with open(fpath, 'rb') as file:
         for row in file:
-            if breakpoint > 0 and total_size + len(row) > breakpoint:
-                row = row[:breakpoint - (total_size + len(row))]
-                
-            coder.update(row)
             total_size += len(row)
             if total_size >= breakpoint:
+                coder.update(row[:breakpoint - total_size])
                 break
+            coder.update(row)
     return coder.hexdigest()
 
 
 def md5_encode(text):
-    coder = md5()
-    coder.update(text)
-    return coder.hexdigest()
+    return hashlib.md5(text).hexdigest()
 
 
 class MD5Coder:
-    def __init__(self, passwd=b""):
+    def __init__(self, passwd=b"", salt=b""):
         if isinstance(passwd, str):
             passwd = passwd.encode("utf8")
-        self.passwd = passwd
+        if isinstance(salt, str):
+            salt = salt.encode("utf8")
+        self.token = salt + passwd
 
     def encrypt(self, text):
-        return md5_encode(self.passwd + text).encode() + text
+        return md5_encode(self.token + text).encode() + text
 
 
     def decrypt(self, text):
         code, data = text[:32], text[32:]
-        verify_code = md5_encode(self.passwd + data)
+        verify_code = md5_encode(self.token + data)
         if code == verify_code or code == verify_code.encode():
             return data
-        raise RuntimeError('Tampered Information: %s' % data)
+        raise RuntimeError('Tampered Data: %s' % data)
         
 
 class AESCoder:

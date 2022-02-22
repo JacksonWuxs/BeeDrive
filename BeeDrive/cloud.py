@@ -120,7 +120,7 @@ def cmd_get_config(choose):
     config["sport"] = int(input("2. Port for cloud service [1024-65535]:"))
     config["spath"] = input("3. Path(s) to store files: ").split(";")
     if fast_setup:
-        config["times"], config["manager"], config["worker"] = 2 ** 29, 2, 32
+        config["times"], config["manager"], config["worker"] = 2 ** 29, cpu_count(), 16
         config["proxy"], config["pname"] = [("beedrive.kitgram.cn", 8888)], os.environ["USERNAME"]
         for port in range(int(config["sport"]) + 1, 65535):
             try:

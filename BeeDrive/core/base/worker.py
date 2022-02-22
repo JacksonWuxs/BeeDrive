@@ -6,11 +6,9 @@ import traceback
 from .idcard import IDCard
 from ..encrypt import AESCoder, MD5Coder, SUPPORT_AES
 from ..utils import clean_coder, base_coder, disconnect
-from ..logger import callback_info, callback_flush
-from ..constant import END_PATTERN, TCP_BUFF_SIZE, STAGE_INIT, DISK_BUFF_SIZE
+from ..logger import callback
+from ..constant import END_PATTERN_COMPILE, END_PATTERN, TCP_BUFF_SIZE, DISK_BUFF_SIZE
 
-
-END_PATTERN_COMPILE = re.compile(END_PATTERN)
 
 
 class BaseWorker(threading.Thread):
@@ -25,16 +23,17 @@ class BaseWorker(threading.Thread):
         self.history = b"" 
 
     def __enter__(self):
-        callback_error("NotImplementedError: Please rewrite BaseWorker.__enter__()", 6, self.info)
+        callback("NotImplementedError: Please rewrite BaseWorker.__enter__()", "error")
         raise NotImplemented("NotImplementedError: Please rewrite BaseWorker.__enter__()")
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         disconnect(self.socket)
-        if exc_type:
-            raise exc_type(exc_val)
         self.history = b""
         self.is_conn = False
         self.socket = None
+        if exc_type is not None:
+            for row in traceback.format_exc().split("\n"):
+                callback(row, "ERROR")
 
     def active(self):
         assert self.socket is not None

@@ -1,30 +1,30 @@
-from os import path, makedirs
-from pickle import dumps, loads
-from time import time, sleep
+import os
+import pickle
+import time
 
 from .utils import clean_path
 from .base import BaseClient, BaseWaiter, FileAccessLocker
 from .encrypt import file_md5
 from .constant import STAGE_DONE, STAGE_FAIL, TCP_BUFF_SIZE, DISK_BUFF_SIZE
-from .logger import callback_info, callback_processbar, callback_flush
+from .logger import callback, processbar, flush
 
 
 class DownloadClient(BaseClient):
     def __init__(self, user, psd, cloud, file, root, retry, encrypt, proxy):
         BaseClient.__init__(self, user, psd, cloud, 'download', retry, encrypt, proxy)
         self.root = clean_path(root)
-        self.fold = path.dirname(file)
+        self.fold = os.path.dirname(file)
         self.file = file
         self.percent = 0.0
         self.start()
         
     def prepare(self):
         self.msg = "Collecting file information"
-        loc_fold = clean_path(path.join(self.root, self.fold))
-        loc_file = clean_path(path.join(self.root, self.file))
-        fsize = path.getsize(loc_file) if path.isfile(loc_file) else 0
-        fcode = file_md5(loc_file, fsize) if path.isfile(loc_file) else b""
-        return {"fname": path.split(self.file)[1],
+        loc_fold = clean_path(os.path.join(self.root, self.fold))
+        loc_file = clean_path(os.path.join(self.root, self.file))
+        fsize = os.path.getsize(loc_file) if os.path.isfile(loc_file) else 0
+        fcode = file_md5(loc_file, fsize) if os.path.isfile(loc_file) else b""
+        return {"fname": os.path.split(self.file)[1],
                 "fsize": fsize,
                 "local_fold": loc_fold,
                 "local_file": loc_file,
@@ -33,14 +33,14 @@ class DownloadClient(BaseClient):
 
     def process(self, fname, fcode, fsize, local_fold, local_file):
         # update file information
-        self.send(str({'fname': fname, 'ffold': self.fold,
-                       'fcode': fcode, 'fsize': fsize}))
+        self.send(pickle.dumps({'fname': fname, 'ffold': self.fold,
+                                'fcode': fcode, 'fsize': fsize}))
         self.msg = "Verifying file information"
-        file_info = loads(self.recv())
+        file_info = pickle.loads(self.recv())
         if "error" in file_info:
             self.msg = file_info["error"]
             self.stage = STAGE_FAIL
-            callback_info(self.msg)
+            callback(self.msg)
             return True
         
         fcode = file_info["fcode"]
@@ -49,13 +49,12 @@ class DownloadClient(BaseClient):
         mode = "wb" if bkpnt == 0 else "ab"
 
         # create a folder if it doesn't exist
-        if not path.isdir(local_fold):
-            makedirs(local_fold)
+        if not os.path.isdir(local_fold):
+            os.makedirs(local_fold)
 
         # begin to reciv file
-        task = "Download:%s" % path.split(self.file)[1]
-        begin_time = last_time = time()
-        update_wait = 0.0
+        task = "Download:%s" % os.path.split(self.file)[1]
+        begin_time = last_time = time.time()
         self.percent = bkpnt / fsize
         self.send(b"ready")
         with open(local_file, mode, DISK_BUFF_SIZE) as f:
@@ -67,15 +66,14 @@ class DownloadClient(BaseClient):
                 f.write(text)
                 bkpnt += len(text)
                 self.percent = bkpnt / fsize
-                if time() - last_time >= update_wait:
-                    update_wait = 0.1
-                    spent = max(0.001, time() - begin_time)
-                    self.msg = callback_processbar(self.percent, fname, bkpnt/spent, spent)
+                if time.time() - last_time >= 0.1:
+                    spent = max(0.001, time.time() - begin_time)
+                    self.msg = processbar(self.percent, fname, bkpnt/spent, spent)
 
         # check file is correct
-        bkpnt = path.getsize(local_file)
-        spent = max(0.001, time() - begin_time)
-        self.msg = callback_processbar(bkpnt/fsize, task, bkpnt/spent, spent)
+        bkpnt = os.path.getsize(local_file)
+        spent = max(0.001, time.time() - begin_time)
+        self.msg = processbar(bkpnt/fsize, task, bkpnt/spent, spent)
         check = file_md5(local_file, bkpnt) == fcode
         if check:
             self.send(STAGE_DONE)
@@ -96,47 +94,48 @@ class DownloadWaiter(BaseWaiter):
     def run(self):
         with self:
             if not self.is_conn:
-                raise ConnectionResetError
+                self.stage = STAGE_FAIL
+                return False
             # detail information of task
-            header = eval(self.recv().decode())
+            header = pickle.loads(self.recv())
             fname = header['fname']
             fcode = header['fcode']
             fsize = header['fsize']
             ffold = header['ffold']
-            local_file = clean_path(path.join(self.roots[0], self.user, ffold, fname))
+            local_file = clean_path(os.path.join(self.roots[0], self.user, ffold, fname))
 
             # check wether the target file is in under other users
             if not local_file.startswith(self.roots[0]):
-                self.send(dumps({"error": "No authorized to download this file!"}))
-                callback_info("%s is trying to visit file %s without authorization!" % (self.info, fname))
+                self.send(pickle.dumps({"error": "No authorized to download this file!"}))
                 self.msg = "%s is trying to visit file %s without authorization!" % (self.info, fname)
+                callback(self.msg, "warn")
                 self.stage = STAGE_FAIL
                 return
 
             # check wether the target file is exist
-            if not path.isfile(local_file):
+            if not os.path.isfile(local_file):
                 self.send(dumps({"error": "File is not found on Cloud!"}))
-                callback_info("File %s is not found!" % fname)
-                self.msg = "File %s is not found!" % fname
+                self.msg = "%s is trying to visit file %s which is not found!" % (self.info, fname)
+                callback(self.msg, "warn")
                 self.stage = STAGE_FAIL
                 return
             
-            local_size = path.getsize(local_file)
+            local_size = os.path.getsize(local_file)
             local_code = file_md5(local_file, local_size)
 
 
             bkpnt = fsize
             if fsize > 0 and file_md5(local_file, fsize) != fcode:
                 bkpnt = 0
-            self.send(dumps({"fcode": local_code,
-                             "fsize": local_size,
-                             "bkpt": bkpnt}))
+            self.send(pickle.dumps({"fcode": local_code,
+                                    "fsize": local_size,
+                                    "bkpt": bkpnt}))
 
             self.percent = bkpnt / local_size
 
-            task = u"Download:%s" % path.split(fname)[1]
+            task = u"Download:%s" % os.path.split(fname)[1]
             with FileAccessLocker(local_file, "rb") as f:
-                begin_time = last_time = time()
+                begin_time = last_time = time.time()
                 f.seek(bkpnt)
                 if self.recv().lower() != b"ready":
                     raise ConnectionAbortedError
@@ -146,17 +145,16 @@ class DownloadWaiter(BaseWaiter):
                     if len(row) == 0:
                         break
                     self.send(row)
-                    if time() - last_time >= 0.1:
+                    if time.time() - last_time >= 0.1:
                         bkpnt = f.tell()
                         self.percent = bkpnt / local_size
-                        spent_time = max(0.00001, time() - begin_time)
-                        update_wait = 0.1
-                        self.msg = callback_processbar(
-                            self.percent, task,
-                            bkpnt / spent_time, spent_time)
-                        last_time = time()
+                        last_time = time.time()
+                        spent_time = max(0.00001, last_time - begin_time)
+                        self.msg = processbar(self.percent, task,
+                                              bkpnt / spent_time, spent_time)
+                        
                 bkpnt = f.tell()
-            spent = max(0.001, time() - begin_time)
-            self.msg = callback_processbar(bkpnt/local_size, task, bkpnt/spent, spent)
+            spent = max(0.001, time.time() - begin_time)
+            self.msg = processbar(bkpnt/local_size, task, bkpnt/spent, spent)
             self.stage = self.msg = self.recv().decode()
-            callback_flush()
+            flush()
