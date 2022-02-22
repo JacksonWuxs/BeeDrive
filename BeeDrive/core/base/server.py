@@ -7,8 +7,7 @@ from .worker import BaseWorker
 from ..logger import callback_error
 from ..constant import END_PATTERN, TCP_BUFF_SIZE
 from ..encrypt import AESCoder, SUPPORT_AES
-from ..utils import disconnect
-
+from ..utils import disconnect, read_until
 
 
 class BaseServer(BaseWorker):
@@ -33,21 +32,7 @@ class BaseServer(BaseWorker):
     
     def parse_line(self, sock):
         try:
-            cache = []
-            sock.settimeout(0.1)
-            for i in range(TCP_BUFF_SIZE):
-                word = sock.recv(1)
-                if word == b"\n" or word == b"":
-                    break
-                cache.append(word)
-            sock.settimeout(False)
-            line = b"".join(cache[:-1])
-            assert line.count(b" ") == 2
-        except:
-            disconnect(sock)
-            return None, None, None
-
-        try:
+            line = read_until(sock, b"\n")
             check = line.strip().decode("utf8").split(" ")
             assert len(check) == 3
             check[0] = check[0].lower()

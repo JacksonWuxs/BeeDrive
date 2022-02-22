@@ -59,7 +59,8 @@ class BaseWorker(threading.Thread):
             encrypt = decrypt = clean_coder
             
         if hasattr(self, 'target') and self.use_proxy:
-            head = str(self.target).encode("utf8") + b"$" + self.info.code.encode("utf8") + b"$"
+            head = (self.target[0] + ":" + str(self.target[1]) + "$").encode("utf8")
+            head += (self.info.code + "$").encode("utf8")
             forward = lambda text: head + text
         else:
             forward = clean_coder

@@ -5,7 +5,7 @@ import time
 
 from .worker import BaseWorker
 from .idcard import IDCard
-from ..utils import disconnect, clean_path
+from ..utils import disconnect, clean_path, get_uuid
 from ..constant import TCP_BUFF_SIZE, END_PATTERN
 from ..encrypt import SUPPORT_AES, AESCoder
 from ..logger import callback_info
@@ -30,7 +30,7 @@ class BaseWaiter(BaseWorker):
 
     def __enter__(self):
         self.authorize_connect()
-        if self.user:
+        if self.user is not None:
             self.build_socket()
             self.verify_connect()
             if self.peer:
@@ -38,6 +38,11 @@ class BaseWaiter(BaseWorker):
 
     def authorize_connect(self):
         if self.proto.startswith("HTTP"):
+            self.redirect = "/"
+            if self.proto.endswith("PROXY"):
+                tokens = self.token.split("/", 2)
+                self.redirect = "/" + tokens[1] + "/"
+                self.token = "/" + tokens[2]
             if self.token == "/":
                 self.user, self.passwd = "", ""
                 self.task, self.peer = "index", "HTTP"
@@ -105,11 +110,13 @@ class BaseWaiter(BaseWorker):
         return card      
 
 
+
+PROCESS_ID = get_uuid()
 class FileAccessLocker:
     def __init__(self, fpath, mode="rb", buffering=-1, encoding=None):
         self.fpath = fpath
         self.ffold = os.path.dirname(fpath)
-        self.flock = "." + os.path.split(fpath)[-1] + ".blck"
+        self.flock = "." + os.path.split(fpath)[-1] + PROCESS_ID + ".blck"
         self.flock = clean_path(os.path.join(self.ffold, self.flock))
         self.file = None
         self.mode = mode

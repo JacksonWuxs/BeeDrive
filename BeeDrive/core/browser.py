@@ -7,7 +7,7 @@ import shutil
 import re
 
 from .base import BaseWaiter
-from .constant import TCP_BUFF_SIZE
+from .constant import TCP_BUFF_SIZE, END_PATTERN
 from .utils import get_uuid, clean_path
 from .logger import callback_info
 
@@ -16,7 +16,7 @@ COOKIE_DIR = clean_path(os.path.join(os.environ["TEMP"], ".beedrive/cookies"))
 if not os.path.exists(COOKIE_DIR):
     os.makedirs(COOKIE_DIR)
 WELCOME = "Welcome to BeeDrive Cloud Service!"
-LOGIN = """<h2> Please Login</h2><form action="/" method="GET" target="_self" autocomplete="on"><p> User Name: <input type="text" name="user"><br></p><p> &nbsp; &nbsp;Password: <input type="password" name="passwd"> <input type="submit" value="Login"> </p></form>"""
+LOGIN = """<h2> Please Login</h2><form action="%s" method="GET" target="_self" autocomplete="on"><p> User Name: <input type="text" name="user"><br></p><p> &nbsp; &nbsp;Password: <input type="password" name="passwd"> <input type="submit" value="Login"> </p></form>"""
 SOURCE_DIR = os.path.split(os.path.split(__file__)[0])[0]
 INDEX_PATH = clean_path(os.path.join(SOURCE_DIR, "source/index.html"))
 ICON_PATH = clean_path(os.path.join(SOURCE_DIR, "source/icon.ico"))
@@ -35,7 +35,7 @@ class HTTPWaiter(BaseWaiter):
             if self.is_conn:
                 try:
                     if self.task == "index":
-                        self.response(INDEX_PAGE % (WELCOME, LOGIN))
+                        self.response(INDEX_PAGE % (WELCOME, LOGIN % self.redirect))
                     elif self.task == "login":
                         self.response(self.do_login())
                     elif self.task == "get":
@@ -45,10 +45,11 @@ class HTTPWaiter(BaseWaiter):
                             self.response(self.do_get())
                     elif self.task == "post":
                         self.response(self.do_post())
+                except Exception as e:
+                    print(e)
                 finally:
-                    time.sleep(5.0)
                     self.socket.close()
-                    self.clean_cookie()
+                    self.clean_local_cookie()
 
     def response(self, content):
         if isinstance(content, str):
@@ -57,7 +58,7 @@ class HTTPWaiter(BaseWaiter):
         clength = len(content) if isinstance(content, bytes) else str(os.fstat(content.fileno())[6])
         cdispos = "inline" if isinstance(content, bytes) else 'attachment; filename="%s"' % os.path.split(content.name)[-1]
         header = ["HTTP/1.1 200 OK",
-                  "Connection: close",
+                  "Connection: Close",
                   "Content-Type: %s" % ctype,
                   "Content-Length: %s" % clength,
                   'Content-Disposition: %s' % cdispos,
@@ -65,28 +66,39 @@ class HTTPWaiter(BaseWaiter):
                   "\r\n"]
         header = "\r\n".join(header).encode("utf8")
         self.socket.sendall(header)
-        if isinstance(content, bytes):
-            self.socket.sendall(content + b"\r\n")
-        else:
-            try:
-                writer = socketserver._SocketWriter(self.socket)
-                shutil.copyfileobj(content, writer)
-            except BrokenPipeError:
-                # user may stop the downloading
-                pass
-            finally:
-                # give time to let the cache flush
-                time.sleep(0.5)
+        if self.proto.endswith("PROXY"):
+            if isinstance(content, bytes):
+                for i in range(len(content) // TCP_BUFF_SIZE + 1):
+                    seg = content[i * TCP_BUFF_SIZE: (i+1) * TCP_BUFF_SIZE]
+                    self.socket.sendall(seg + END_PATTERN)
+            else:
+                for line in content:
+                    self.socket.sendall(line + END_PATTERN)
                 content.close()
+        else:
+            if isinstance(content, bytes):
+                self.socket.sendall(content)                
+            else:
+                try:
+                    writer = socketserver._SocketWriter(self.socket)
+                    shutil.copyfileobj(content, writer)
+                except BrokenPipeError:
+                    # user may stop the downloading
+                    pass
+                finally:
+                    # give time to let the cache flush
+                    time.sleep(0.5)
+                    content.close()
+        print("Done")
 
     def do_login(self):
         socketname = self.socket.getpeername()
         if self.user not in self.userinfo:
-            callback_info("IP=%s login with a wrong user name" % socketname)
-            return INDEX_PAGE % ("User name is incorrect!", LOGIN)
+            callback_info("IP=%s login with a wrong user name" % str(socketname))
+            return INDEX_PAGE % ("User name is incorrect!", LOGIN % self.redirect)
         if self.passwd != self.userinfo[self.user]:
             callback_info("User=%s login with a wrong password" % self.user)
-            return INDEX_PAGE % ("Password is incorrect!", LOGIN)
+            return INDEX_PAGE % ("Password is incorrect!", LOGIN % self.redirect)
 
         self.token = get_uuid()
         with open(os.path.join(COOKIE_DIR, self.token), "wb") as f:
@@ -101,7 +113,7 @@ class HTTPWaiter(BaseWaiter):
             return rslt
         self.passwd, query = self.userinfo[self.user], self.passwd
         query = query.replace("%20", " ")
-        target = clean_path(os.path.join(self.root, query))
+        target = clean_path(os.path.join(self.roots[0], query))
         if os.path.isdir(target):
             page_content = self.render_list_dir(query)
             return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
@@ -127,11 +139,12 @@ class HTTPWaiter(BaseWaiter):
         while not line.endswith(b"--\r\n"):
             line = fd.readline()
             rest_len -= len(line)
-            line = line.decode("utf-8").strip().replace(":", "").replace(";", "")
-            fname = line.split(" ")[-1].split("=")[-1][1:-1]
+            line = line.strip().replace(b":", b"").replace(b";", b"")
+            fname = line.split(b" ")[-1].split(b"=")[-1][1:-1]
             if len(fname) == 0:
                 break
-            fpath = clean_path(os.path.join(self.root, root, fname))
+            fname = fname.decode("utf8")
+            fpath = clean_path(os.path.join(self.roots[0], root, fname))
             ffold = os.path.dirname(fpath)
             if not os.path.exists(ffold):
                 os.makedirs(ffold)
@@ -158,7 +171,9 @@ class HTTPWaiter(BaseWaiter):
         root = root.replace("\\", "/")
         content = "<h3>Visiting: /%s</h3>" % root
         content += "<h3>Upload</h3>"
-        content += '<form method="post" enctype="multipart/form-data" action="/?cookie=%s&upload=%s">' % (self.token, root)
+        content += '<form method="post" enctype="multipart/form-data" action="%s?cookie=%s&upload=%s">' % (self.redirect,
+                                                                                                           self.token,
+                                                                                                           root)
         content += '<input ref="input" multiple="multiple" name="file[]" type="file"/>'
         content += '<input type="submit" value="Upload"/></form>'
         content += "<br>"
@@ -168,10 +183,10 @@ class HTTPWaiter(BaseWaiter):
         if root != self.user:
             father_root = root[:-1] if root.endswith("/") else root
             father_root = os.path.dirname(father_root)
-            content += '<li><a href="/?cookie=%s&file=%s">../</a>' % (self.token, father_root)
+            content += '<li><a href="%s?cookie=%s&file=%s">../</a>' % (self.redirect, self.token, father_root)
 
         dirs, files = [], []
-        dir_path = clean_path(os.path.join(self.root, root))
+        dir_path = clean_path(os.path.join(self.roots[0], root))
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
         for each in sorted(os.listdir(dir_path)):
@@ -184,10 +199,10 @@ class HTTPWaiter(BaseWaiter):
                 files.append(each)
 
         for fname in itertools.chain(dirs, files):
-            link = clean_path(os.path.join(dir_path, fname)).replace(self.root, "")
+            link = clean_path(os.path.join(dir_path, fname)).replace(self.roots[0], "")
             if ord(link[0]) == 47:
                 link = link[1:]
-            content += '<li><a href="/?cookie=%s&file=%s">%s</a>' % (self.token, link, fname)
+            content += '<li><a href="%s?cookie=%s&file=%s">%s</a>' % (self.redirect, self.token, link, fname)
         content += "</ul>"
         return content
 
@@ -212,7 +227,7 @@ class HTTPWaiter(BaseWaiter):
         self.user, self.token = info["user"], info["token"]
         return True
 
-    def clean_cookie(self):
+    def clean_local_cookie(self):
         for cookie in os.listdir(COOKIE_DIR):
             cookie_path = os.path.join(COOKIE_DIR, cookie)
             cookie = pickle.load(open(cookie_path, "rb"))

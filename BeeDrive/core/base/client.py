@@ -45,12 +45,12 @@ class BaseClient(BaseWorker):
             conn = build_connect(ip, port)
             if isinstance(conn, str):
                 continue
-            print("measuring connection")
+
             # whether connect to the proxy or not
             if (ip, port) != self.target:
                 source = self.info.code #str(self.socket.getsockname())
                 # makesure the proxy node has target ip
-                conn.sendall(('Proxy:%s$%s$' % (str(self.target), source)).encode() + END_PATTERN)
+                conn.sendall(('Proxy %s:%s %s' % (self.target[0], self.target[1], source)).encode())
                 rspn = conn.recv(TCP_BUFF_SIZE)
                 if rspn != b"TRUE":
                     continue
@@ -71,11 +71,11 @@ class BaseClient(BaseWorker):
             info = AESCoder(self.passwd).encrypt(info)
         header += pickle.dumps({"info": info, "text": not SUPPORT_AES})
         if self.use_proxy:
-            target = str(self.target).encode("utf8")
+            target = (self.target[0] + ":" + str(self.target[1])).encode("utf8")
             source = self.info.code.encode("utf8")
             header = b"%s$%s$%s%s" % (target, source, header, END_PATTERN)
         self.socket.sendall(header)
-        
+
         # makesure the request is confirmed
         try:
             rspn = self.socket.recv(1024)

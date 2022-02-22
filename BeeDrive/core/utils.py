@@ -3,6 +3,8 @@ import socket
 from uuid import getnode, uuid1
 from os import path, listdir
 
+from .constant import TCP_BUFF_SIZE
+
 
 def clean_path(root):
     if isinstance(root, (tuple, list)):
@@ -117,3 +119,23 @@ def print_qrcode(text):
         qr.print_ascii(invert=True)
     except ImportError:
         pass
+
+
+def read_until(sock, seg, timeout=1.0):
+    cache = []
+    sock.settimeout(0.01)
+    start = time.time()
+    for i in range(TCP_BUFF_SIZE):
+        try:
+            word = sock.recv(1)
+        except socket.timeout:
+            time.sleep(timeout * 0.001)
+            word = b""
+        if word == seg or len(word) == 0:
+            cache.append(word)
+            break
+        if time.time() - start > timeout:
+            raise TimeoutError
+        cache.append(word)
+    sock.settimeout(None)
+    return b"".join(cache)

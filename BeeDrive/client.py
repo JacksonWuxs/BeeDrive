@@ -4,13 +4,12 @@ import os
 import sys
 
 from .core.Client import ClientManager
-from .core.constant import NewTask, Stop, Done, STAGE_FAIL, STAGE_DONE, MAX_THREAD_WORKER
+from .core.constant import NewTask, Stop, Done, STAGE_FAIL, STAGE_DONE
 from .core.utils import analysis_ip, resource_path
 from .configures import save_config, load_config
 
 
 GUI_CONFIG = dict(size=(7, 1), justification='right', text_color="black", background_color="white")
-MAX_THREAD_WORKER = int(MAX_THREAD_WORKER // 2)
 
 
 def cmd_check_config():

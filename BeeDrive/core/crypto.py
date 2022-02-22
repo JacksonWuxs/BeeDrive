@@ -1,7 +1,7 @@
 from os import path
 from hashlib import md5
 
-from .constant import IV, BLOCK_SIZE
+from .constant import IV, BLOCK_SIZE, DISK_BUFF_SIZE
 
 try:
     try:
@@ -24,15 +24,18 @@ __all__ = ['file_md5', 'AESCoder', 'MD5Coder']
 def file_md5(fpath, breakpoint=0):
     coder = md5()
     total_size = 0
+    if breakpoint <= 0:
+        breakpoint = float("inf")  
     with open(fpath, 'rb') as file:
-        for row in file:
-            if breakpoint > 0 and total_size + len(row) > breakpoint:
-                row = row[:breakpoint - (total_size + len(row))]
-                
-            coder.update(row)
+        while True:
+            row = file.read(DISK_BUFF_SIZE)
             total_size += len(row)
             if total_size >= breakpoint:
+                coder.update(row[:breakpoint - total_size])
                 break
+            elif len(row) == 0:
+                break
+            coder.update(row)
     return coder.hexdigest()
 
 
