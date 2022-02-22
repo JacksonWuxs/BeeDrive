@@ -41,7 +41,7 @@ def cmd_get_config(choose):
     config["passwd"] = getpass.getpass("2. Password to login the Cloud: ")
     config["cloud"] = analysis_ip(input("3. Cloud service address [ip:port]: "))[0]
     if fast_setup:
-        config["proxy"] = [("beedrive.kitgram.cn", 8888)]
+        config["proxy"] = [("127.0.0.1", 8888), ("beedrive.kitgram.cn", 8888)]
         config["root"] = config.get("root", "./")
         config["encrypt"], config["pool"], config["retry"] = True, 4, 3
     else:

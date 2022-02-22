@@ -48,6 +48,7 @@ class HTTPWaiter(BaseWaiter):
                 except Exception as e:
                     print(e)
                 finally:
+                    time.sleep(3.)
                     self.socket.close()
                     self.clean_local_cookie()
 
@@ -89,8 +90,7 @@ class HTTPWaiter(BaseWaiter):
                     # give time to let the cache flush
                     time.sleep(0.5)
                     content.close()
-        print("Done")
-
+                    
     def do_login(self):
         socketname = self.socket.getpeername()
         if self.user not in self.userinfo:
@@ -136,6 +136,7 @@ class HTTPWaiter(BaseWaiter):
         rest_len = int(headers[b"content-length"])
         line = fd.readline()
         rest_len -= len(line)
+        files = 0
         while not line.endswith(b"--\r\n"):
             line = fd.readline()
             rest_len -= len(line)
@@ -152,18 +153,21 @@ class HTTPWaiter(BaseWaiter):
             rest_len -= len(line)
             line = fd.readline()
             rest_len -= len(line)
+            
             try:
-                callback_info("User=%s upload file: %s" % (self.user, fpath))
                 with open(fpath, "wb") as fw:
+                    callback_info("User=%s upload file: %s" % (self.user, fpath))
                     while rest_len > 0:
-                        line = fd.readline()
+                        line = fd.read(TCP_BUFF_SIZE)
                         rest_len -= len(line)
                         if boundary in line:
+                            files += 1
                             break
                         fw.write(line)
             except IOError:
                 break
         page_content = self.render_list_dir(root)
+        callback_info("Totally uploaded %d files by %s" % (files, self.user))
         return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
 
 

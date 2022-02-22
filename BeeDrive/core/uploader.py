@@ -1,6 +1,6 @@
 from os import path, makedirs
 from pickle import dumps, loads
-from time import time, sleep
+from time import time
 from traceback import format_exc
 
 from .utils import clean_path
