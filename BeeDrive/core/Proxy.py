@@ -48,15 +48,17 @@ class BaseProxyNode(threading.Thread):
             if len(message) == 0:
                 raise ConnectionResetError
             texts = (history + message).split(END_PATTERN)
+            self.histories[sock] = texts[-1]
             for element in texts[:-1]:
                 yield element + END_PATTERN
-            self.histories[sock] = texts[-1]
         except ConnectionResetError:
             self.remove_connect(sock)
         except ConnectionAbortedError:
             self.remove_connect(sock)
         except OSError:
             self.remove_connect(sock)
+        except socket.timeout:
+            pass
 
     def clear_pool(self):
         for sock in list(self.routes):
@@ -99,6 +101,7 @@ class BaseProxyNode(threading.Thread):
             disconnect(self.node)
 
     def _register(self, nickname, client, protocol):
+        client.settimeout(0.02)
         self.routes[nickname] = client
         self.routes[client] = nickname
         self.connects[client] = protocol
@@ -249,7 +252,6 @@ class LocalRelay(BaseProxyNode):
             route = self.routes[self.master]
             head = self.routes[sock] + b"$"
             for data in self.read_buff(sock):
-                print(data)
                 route.sendall(head + data)
 
 
