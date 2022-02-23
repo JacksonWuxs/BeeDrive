@@ -11,7 +11,7 @@ from .utils import get_uuid, clean_path
 from .logger import callback
 
 
-COOKIE_DIR = clean_path(os.path.join(os.environ["TEMP"], ".beedrive/cookies"))
+COOKIE_DIR = clean_path(os.path.join(os.environ.get("TEMP", ""), ".beedrive/cookies"))
 if not os.path.exists(COOKIE_DIR):
     os.makedirs(COOKIE_DIR)
 WELCOME = "Welcome to BeeDrive Cloud Service!"
@@ -51,9 +51,6 @@ class HTTPWaiter(BaseWaiter):
                     self.socket.close()
                     self.clean_local_cookie()
 
-    def send_end(self):
-        self.socket.sendall(END_PATTERN)
-
     def response(self, content):
         if isinstance(content, str):
             content = content.encode("utf-8")
@@ -73,12 +70,10 @@ class HTTPWaiter(BaseWaiter):
             if isinstance(content, bytes):
                 for i in range(len(content) // TCP_BUFF_SIZE + 1):
                     seg = content[i * TCP_BUFF_SIZE: (i+1) * TCP_BUFF_SIZE]
-                    self.socket.sendall(seg)
-                    self.send_end()
+                    self.send(seg)
             else:
                 for line in content:
-                    self.socket.sendall(line)
-                    self.send_end()
+                    self.send(line)
                 content.close()
         else:
             if isinstance(content, bytes):
@@ -117,6 +112,7 @@ class HTTPWaiter(BaseWaiter):
             return rslt
         self.passwd, query = self.userinfo[self.user], self.passwd
         query = query.replace("%20", " ")
+
         target = clean_path(os.path.join(self.roots[0], query))
         if os.path.isdir(target):
             page_content = self.render_list_dir(query)
@@ -162,9 +158,9 @@ class HTTPWaiter(BaseWaiter):
                 with open(fpath, "wb") as fw:
                     callback("User=%s upload file: %s" % (self.user, fpath))
                     while rest_len > 0:
-                        line = fd.read(TCP_BUFF_SIZE)
+                        line = fd.readline()
                         rest_len -= len(line)
-                        if boundary in line:
+                        if boundary in line and line.endswith(b"--\r\n"):
                             files += 1
                             break
                         fw.write(line)
@@ -198,7 +194,7 @@ class HTTPWaiter(BaseWaiter):
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
         for each in sorted(os.listdir(dir_path)):
-            if each.startswith("."):
+            if os.path.split(each)[-1].startswith("."):
                 pass
             elif os.path.isdir(os.path.join(dir_path, each)):
                 each += r"/"

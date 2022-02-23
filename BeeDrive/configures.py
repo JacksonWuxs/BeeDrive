@@ -8,7 +8,8 @@ from .core.logger import callback
 
 def init_config_path(service=None):
     is_window = sys.platform.startswith("win")
-    path = clean_path(os.path.join(os.environ["APPDATA"], r"/BeeDrive"))
+    path = clean_path(os.path.join(os.environ.get("APPDATA", ""),
+                                   r"/.BeeDriveConfig"))
     if not os.path.exists(path):
         os.makedirs(path)
     if service:

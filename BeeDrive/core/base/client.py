@@ -55,7 +55,7 @@ class BaseClient(BaseWorker):
                 rspn = conn.recv(TCP_BUFF_SIZE)
                 if rspn != b"TRUE":
                     continue
-                callback('Connect target %s:%d using proxy %s:%d' % (self.target[0], self.target[1],
+                callback('Connect to %s:%d using proxy %s:%d' % (self.target[0], self.target[1],
                                                                      ip, port))
                 self.use_proxy = True
             self.socket = conn
@@ -97,28 +97,26 @@ class BaseClient(BaseWorker):
         kwrds = self.prepare()
         for retry in range(1, 1 + self.max_retry):
             with self:
-                if not self.is_conn:
-                    continue
-                try:
-                    if self.peer:
+                if self.peer and not self.is_conn:
+                    try:
                         self.stage = STAGE_RUN
                         result = self.process(**kwrds)
                         flush()
                         if result is True:
                             self.stage = STAGE_DONE
                             return
-                except ConnectionResetError:
-                    pass
-                except ConnectionAbortedError:
-                    pass
-                except EOFError:
-                    pass
-                except TimeoutError:
-                    pass
-                except socket.timeout:
-                    pass
+                    except ConnectionResetError:
+                        pass
+                    except ConnectionAbortedError:
+                        pass
+                    except EOFError:
+                        pass
+                    except TimeoutError:
+                        pass
+                    except socket.timeout:
+                        pass
             self.stage = STAGE_RETRY
             self.msg = "Retry connection in %d seconds" % RETRY_WAIT
-            callback(self.msg, "info")
+            callback(self.msg)
             time.sleep(RETRY_WAIT)
         self.stage = STAGE_FAIL

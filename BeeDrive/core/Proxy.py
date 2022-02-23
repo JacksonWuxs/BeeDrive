@@ -26,7 +26,6 @@ class BaseProxyNode(threading.Thread):
         self.routes = {}
         self.histories = {}
         self.connects = {}
-        self.is_conn = False
 
     def __enter__(self):
         self.build_server()
@@ -52,6 +51,7 @@ class BaseProxyNode(threading.Thread):
                 raise ConnectionResetError
             texts = (history + message).split(END_PATTERN)
             for element in texts[:-1]:
+                
                 yield element + END_PATTERN
             self.histories[sock] = texts[-1]
         except ConnectionResetError:
@@ -73,21 +73,24 @@ class BaseProxyNode(threading.Thread):
                 del self.connects[sock]
                 callback("Remove connection %s" % addr.decode())
 
-    def process(self, sock):
+    def process(self):
         try:
-            self.handle_request(sock)
-        except Exception as e:
-            callback("Error: %s" % e)
-            self.remove_connect(sock)
+            while self.is_conn:
+                for sock in select.select(self.listen_sock, [], [])[0]:
+                    try:
+                        self.handle_request(sock)
+                    except Exception as e:
+                        callback("Error: %s" % e)
+                        if sock != self.node:
+                            self.remove_connect(sock)
+        except:
+            return False
 
     def _register(self, nickname, client, protocol):
         self.routes[nickname] = client
         self.routes[client] = nickname
         self.connects[client] = protocol
         self.histories[client] = b""
-
-    def stop(self):
-        self.is_conn = False
 
 
 class HostProxy(BaseProxyNode):
@@ -99,14 +102,7 @@ class HostProxy(BaseProxyNode):
         while True:
             with self:
                 callback("NAT server is working at 0.0.0.0:%d" % self.port)
-                while self.is_conn:
-                    try:
-                        for sock in select.select(self.listen_sock, [], [])[0]:
-                            self.process(sock)
-                    except OSError:
-                        pass
-            if not self.is_conn:
-                break
+                self.process()
 
     def accept(self):
         client, addr = self.node.accept()
@@ -200,12 +196,14 @@ class LocalRelay(BaseProxyNode):
         self.server = ("127.0.0.1", int(server_port))
         self.nickname = (nick_name, int(server_port))
         self.master = master
+        self._is_killed = False
 
     def build_server(self):
         route = build_connect(*self.master)
         if not isinstance(route, str):
             route.sendall(("Regist %s:%s\n" % self.nickname).encode())
             if route.recv(128) == b"TRUE":
+                self.node = route
                 self.routes[self.master] = route
                 self.histories[route] = b""
                 callback("Registed at Proxy %s:%d with nickname %s:%d" % (route.getpeername()[0],
@@ -214,26 +212,22 @@ class LocalRelay(BaseProxyNode):
                                                                           self.nickname[1]))
 
     def run(self):
-        with self:
-            while self.is_conn:
-                sockets = self.listen_sock
-                while len(sockets) == 0 and self.is_conn:
-                    callback("Trying to reconnect %s" % (self.master,))
-                    disable = [s for s in self.routes if isinstance(s, socket.socket)]
-                    for s in disable:
-                        self.remove_connect(s)
+        while not self._is_killed:
+            with self:
+                while self.node is None or \
+                       isinstance(self.node, socket.socket) and \
+                       self.node._closed:
+                    for s in list(self.routes):
+                        if isinstance(s, socket.socket):
+                            self.remove_connect(s)
+                    callback("Trying to reconnect %s in %.0f seconds" % (self.master, RETRY_WAIT))
                     time.sleep(RETRY_WAIT)
                     self.build_server()
-                    sockets = self.listen_sock
-                if not self.is_conn:
-                    break
-                for sock in select.select(sockets, [], [])[0]:
-                    self.process(sock)
+                self.process()
                     
     def handle_request(self, sock):
-        peername = sock.getpeername()
         # message from master proxy
-        if peername == self.master:
+        if sock == self.node:
             for data in self.read_buff(sock):
                 taskid, data = data.split(b"$", 1)
                 try:
@@ -245,11 +239,16 @@ class LocalRelay(BaseProxyNode):
                     self._register(taskid, conn, 0)
 
         # message from the local server   
-        elif peername == self.server:
+        else:
             route = self.routes[self.master]
             head = self.routes[sock] + b"$"
             for data in self.read_buff(sock):
                 route.sendall(head + data)
+
+    def stop(self):
+        self._is_killed = True
+        if self.node:
+            self.node.close()
 
 
 

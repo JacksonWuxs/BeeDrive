@@ -8,7 +8,7 @@ from multiprocessing import cpu_count
 
 from .core.Server import LocalServer
 from .core.Proxy import LocalRelay
-from .core.utils import analysis_ip, resource_path, trust_sleep
+from .core.utils import analysis_ip, resource_path, trust_sleep, get_uuid
 from .configures import save_config, load_config
 
 
@@ -45,7 +45,7 @@ def cloud_gui():
     import PySimpleGUI as sg
     config = load_config("cloud")
     users = ";".join(_[0] + ":" + _[1] for _ in config.get("users", []))
-    proxy = ";".join(_[0] + ":" + str(_[1]) for _ in config.get("proxy", []))
+    proxy = ";".join(_[0] + ":" + str(_[1]) for _ in config.get("proxy", [("beedrive.kitgram.cn", 80)]))
     GUI_SETTING = dict(size=(11, 1), justification='right', text_color="black", background_color="white")
     layout = [[sg.Text("Users", **GUI_SETTING), sg.InputText(users, size=(33, 1))],
               [sg.Text("Server Port", **GUI_SETTING), sg.InputText(str(config.get("sport", "")), size=(33, 1))],
@@ -121,7 +121,8 @@ def cmd_get_config(choose):
     config["spath"] = input("3. Path(s) to store files: ").split(";")
     if fast_setup:
         config["times"], config["manager"], config["worker"] = 2 ** 29, cpu_count(), 16
-        config["proxy"], config["pname"] = [("beedrive.kitgram.cn", 8888)], os.environ["USERNAME"]
+        config["proxy"] = [("beedrive.kitgram.cn", 80)]
+        config["pname"] = os.environ.get("USERNAME", os.environ.get("LOGNAME", get_uuid()))
         for port in range(int(config["sport"]) + 1, 65535):
             try:
                 s = socket.socket()
@@ -139,7 +140,7 @@ def cmd_get_config(choose):
         config["manager"] = max(int(input("5. Maximum number of available CPU [1-%d]:" % cpu_count())), 1)
         config["worker"] = max(int(input("6. How many tasks can each CPU accept at most? ")), 1)
         if input("\nDo you need a Free NAT Service? [y|n]: ").lower() == "y":
-            print("BeeDrive Official Free NAT at beedrive.kitgram.cn:8888")
+            print("BeeDrive Official Free NAT at beedrive.kitgram.cn:80")
             config["proxy"] = input("7. NAT service(s) address [ip:port;ip;port;...]: ")
             config["proxy"] = [(addr.split(":")[0], int(addr.split(":")[1])) for addr in config["proxy"].split(";")]
             config["pname"] = input("8. Nickname on NAT servers: ")

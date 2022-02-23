@@ -72,6 +72,7 @@ class BaseWaiter(BaseWorker):
     def verify_connect(self):
         """verify connection is a valid BEE-protocol connection"""
         if not self.proto.startswith("BEE"):
+            self.build_pipeline("", False)
             return
         try:
             # trying to recive information
@@ -103,7 +104,7 @@ class BaseWaiter(BaseWorker):
             disconnect(self.socket)
             return 
         self.info = IDCard(self.info.uuid, self.info.mac, peer["encrypt"])
-        self.build_pipeline(self.passwd)
+        self.build_pipeline(self.passwd, peer["encrypt"])
         self.send(pickle.dumps(self.info.info))
         self.peer = card
         return card      

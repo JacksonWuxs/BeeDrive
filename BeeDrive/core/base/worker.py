@@ -48,8 +48,8 @@ class BaseWorker(threading.Thread):
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
 
-    def build_pipeline(self, password=u""):
-        if SUPPORT_AES and self.info.encrypt:
+    def build_pipeline(self, password=u"", encrypt=True):
+        if SUPPORT_AES and encrypt:
             ase, md5 = AESCoder(password), MD5Coder(password)
             encrypt = lambda x: ase.encrypt(md5.encrypt(x))
             decrypt = lambda x: md5.decrypt(ase.decrypt(x))

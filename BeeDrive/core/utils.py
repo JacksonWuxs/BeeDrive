@@ -78,7 +78,7 @@ def disconnect(sock):
 def base_coder(text):
     if isinstance(text, bytes):
         return text
-    return text.encode()
+    return text.encode("utf8")
 
 
 def clean_coder(text):
@@ -125,17 +125,14 @@ def read_until(sock, seg, timeout=1.0):
     cache = []
     sock.settimeout(0.01)
     start = time.time()
-    for i in range(TCP_BUFF_SIZE):
+    while len(cache) < 65535 and time.time() - start <= timeout:
         try:
             word = sock.recv(1)
+            if word == seg or len(word) == 0:
+                cache.append(word)
+                break
+            cache.append(word)
         except socket.timeout:
             time.sleep(timeout * 0.001)
-            word = b""
-        if word == seg or len(word) == 0:
-            cache.append(word)
-            break
-        if time.time() - start > timeout:
-            raise TimeoutError
-        cache.append(word)
     sock.settimeout(None)
     return b"".join(cache)
