@@ -24,7 +24,7 @@ class BaseServer(BaseWorker):
     
     def parse_line(self, sock):
         try:
-            line = read_until(sock, b"\n")
+            line = read_until(sock)
             check = line.strip().decode("utf8").split(" ")
             assert len(check) == 3
             check[0] = check[0].lower()

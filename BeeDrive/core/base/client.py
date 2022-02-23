@@ -97,7 +97,7 @@ class BaseClient(BaseWorker):
         kwrds = self.prepare()
         for retry in range(1, 1 + self.max_retry):
             with self:
-                if self.peer and not self.is_conn:
+                if self.peer and self.is_conn:
                     try:
                         self.stage = STAGE_RUN
                         result = self.process(**kwrds)

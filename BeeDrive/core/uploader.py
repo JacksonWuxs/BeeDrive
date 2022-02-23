@@ -28,8 +28,7 @@ class UploadClient(BaseClient):
         self.msg = "Verifying task progress"
         self.send(pickle.dumps({'fname': fname, 'fsize': fsize,
                                 'fcode': fcode, 'fold': self.fold}))
-        msg = self.recv()
-        info = pickle.loads(msg)
+        info = pickle.loads(self.recv())
         bkpnt = 0
         if file_md5(self.file, info["size"]) == info["code"]:
             bkpnt = info["size"]

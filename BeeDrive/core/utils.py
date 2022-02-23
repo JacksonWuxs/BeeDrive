@@ -121,18 +121,16 @@ def print_qrcode(text):
         pass
 
 
-def read_until(sock, seg, timeout=1.0):
-    cache = []
-    sock.settimeout(0.01)
-    start = time.time()
-    while len(cache) < 65535 and time.time() - start <= timeout:
+def read_until(sock, seg=b"\n", timeout=1.0):
+    sock.settimeout(timeout * 0.01)
+    buffer = []
+    begin = time.time()
+    while time.time() - begin < timeout:
         try:
-            word = sock.recv(1)
-            if word == seg or len(word) == 0:
-                cache.append(word)
+            buffer.append(sock.recv(1))
+            if buffer[-1] in (seg, b""):
                 break
-            cache.append(word)
         except socket.timeout:
-            time.sleep(timeout * 0.001)
+            time.sleep(timeout * 0.01)
     sock.settimeout(None)
-    return b"".join(cache)
+    return b"".join(buffer)

@@ -1,6 +1,7 @@
 import select
 import socket
 import threading
+import traceback
 import time
 import os
 
@@ -22,6 +23,7 @@ class BaseProxyNode(threading.Thread):
         threading.Thread.__init__(self)
         self.daemon = True
         self.node = None
+        self.killed = False
         self.registed = set()
         self.routes = {}
         self.histories = {}
@@ -29,13 +31,11 @@ class BaseProxyNode(threading.Thread):
 
     def __enter__(self):
         self.build_server()
-        self.is_conn = True
 
     def __exit__(self, *args, **kwrds):
-        self.remove_connect(self.node)
+        self.clear_pool()
         self.node = None
-        self.is_conn = False
-
+        
     @property
     def listen_sock(self):
         return list(filter(lambda s: isinstance(s, socket.socket) and not s._closed,
@@ -46,12 +46,9 @@ class BaseProxyNode(threading.Thread):
             history = self.histories[sock]
             message = sock.recv(TCP_BUFF_SIZE)
             if len(message) == 0:
-                if len(history) > 0:
-                    yield history + END_PATTERN
                 raise ConnectionResetError
             texts = (history + message).split(END_PATTERN)
             for element in texts[:-1]:
-                
                 yield element + END_PATTERN
             self.histories[sock] = texts[-1]
         except ConnectionResetError:
@@ -60,6 +57,15 @@ class BaseProxyNode(threading.Thread):
             self.remove_connect(sock)
         except OSError:
             self.remove_connect(sock)
+
+    def clear_pool(self):
+        for sock in list(self.routes):
+            if isinstance(sock, socket.socket):
+                self.remove_connect(sock)
+        self.routes.clear()
+        self.histories.clear()
+        self.connects.clear()
+        self.registed.clear()
 
     def remove_connect(self, sock):
         if sock is not None:
@@ -75,16 +81,22 @@ class BaseProxyNode(threading.Thread):
 
     def process(self):
         try:
-            while self.is_conn:
+            while self.node and not self.node._closed:
                 for sock in select.select(self.listen_sock, [], [])[0]:
                     try:
                         self.handle_request(sock)
                     except Exception as e:
-                        callback("Error: %s" % e)
                         if sock != self.node:
                             self.remove_connect(sock)
-        except:
-            return False
+        except Exception as e:
+            callback("Proxy will relaunch in short!", "error")
+            for row in trackback.format_exc().split("\n"):
+                callback(row, "error")            
+
+    def stop(self):
+        self.killed = True
+        if self.node:
+            disconnect(self.node)
 
     def _register(self, nickname, client, protocol):
         self.routes[nickname] = client
@@ -106,7 +118,7 @@ class HostProxy(BaseProxyNode):
 
     def accept(self):
         client, addr = self.node.accept()
-        request = read_until(client, b"\n").strip()
+        request = read_until(client).strip()
         if request.startswith(b'Proxy'):
             _, target, nickname = request.split(b" ")
             if target in self.routes:
@@ -153,6 +165,8 @@ class HostProxy(BaseProxyNode):
         else:
             tgt, pattern = self.connects[sock]
             info = sock.recv(TCP_BUFF_SIZE)
+            if len(info) == 0:
+                raise ConnectionResetError
             self.routes[tgt].sendall(pattern % info)
 
     def handle_http(self, request, addr, src):
@@ -186,7 +200,7 @@ class HostProxy(BaseProxyNode):
         content += "</ul><hr></body></html>\r\n\r\n"
         src.sendall(b"HTTP/1.1 200 OK\r\nConnection: Close\r\n\r\n")
         src.sendall(content.encode("utf8"))
-        time.sleep(2.)
+        time.sleep(1.0)
         src.close()
         
 
@@ -196,7 +210,6 @@ class LocalRelay(BaseProxyNode):
         self.server = ("127.0.0.1", int(server_port))
         self.nickname = (nick_name, int(server_port))
         self.master = master
-        self._is_killed = False
 
     def build_server(self):
         route = build_connect(*self.master)
@@ -212,19 +225,12 @@ class LocalRelay(BaseProxyNode):
                                                                           self.nickname[1]))
 
     def run(self):
-        while not self._is_killed:
+        while not self.killed:
             with self:
-                while self.node is None or \
-                       isinstance(self.node, socket.socket) and \
-                       self.node._closed:
-                    for s in list(self.routes):
-                        if isinstance(s, socket.socket):
-                            self.remove_connect(s)
-                    callback("Trying to reconnect %s in %.0f seconds" % (self.master, RETRY_WAIT))
-                    time.sleep(RETRY_WAIT)
-                    self.build_server()
                 self.process()
-                    
+                callback("Retry to reconnect %s in %.0f seconds" % (self.master, RETRY_WAIT))
+                time.sleep(RETRY_WAIT)
+                
     def handle_request(self, sock):
         # message from master proxy
         if sock == self.node:
@@ -243,12 +249,9 @@ class LocalRelay(BaseProxyNode):
             route = self.routes[self.master]
             head = self.routes[sock] + b"$"
             for data in self.read_buff(sock):
+                print(data)
                 route.sendall(head + data)
 
-    def stop(self):
-        self._is_killed = True
-        if self.node:
-            self.node.close()
 
 
 
