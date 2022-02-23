@@ -6,7 +6,7 @@ import socketserver
 import shutil
 
 from .base import BaseWaiter
-from .constant import TCP_BUFF_SIZE, END_PATTERN
+from .constant import TCP_BUFF_SIZE, END_PATTERN_COMPILE
 from .utils import get_uuid, clean_path
 from .logger import callback
 
@@ -158,7 +158,7 @@ class HTTPWaiter(BaseWaiter):
                 with open(fpath, "wb") as fw:
                     callback("User=%s upload file: %s" % (self.user, fpath))
                     while rest_len > 0:
-                        line = fd.readline()
+                        line = END_PATTERN_COMPILE.sub(b"", fd.readline())
                         rest_len -= len(line)
                         if boundary in line and line.endswith(b"--\r\n"):
                             files += 1
