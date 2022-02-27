@@ -80,7 +80,7 @@ class DownloadClient(BaseClient):
             self.msg = "File has been received"
         else:
             self.send(STAGE_FAIL)
-            self.msg = "ERROR: File is incorrect"
+            self.msg = "Task is failed"
         return check
     
 
@@ -114,7 +114,7 @@ class DownloadWaiter(BaseWaiter):
 
             # check wether the target file is exist
             if not os.path.isfile(local_file):
-                self.send(dumps({"error": "File is not found on Cloud!"}))
+                self.send(pickle.dumps({"error": "File is not found on Cloud!"}))
                 self.msg = "%s is trying to visit file %s which is not found!" % (self.info, fname)
                 callback(self.msg, "warn")
                 self.stage = STAGE_FAIL

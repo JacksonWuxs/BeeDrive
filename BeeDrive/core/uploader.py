@@ -102,9 +102,6 @@ class UploadWaiter(BaseWaiter):
                 self.send(b"ready")
                 while self.percent < 1.0:
                     text = self.recv()
-                    if not text:
-                        callback("Connection is broken.", "error")
-                        break
                     f.write(text)
                     bkpnt += len(text)
                     self.percent = bkpnt / fsize

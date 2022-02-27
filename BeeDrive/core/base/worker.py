@@ -72,12 +72,10 @@ class BaseWorker(threading.Thread):
 
     def recv(self):
         msg = []
-        text = self.history + self.socket.recv(TCP_BUFF_SIZE)
-        while text:
-            texts = END_PATTERN_COMPILE.split(text)
+        while sum(map(len, msg)) < DISK_BUFF_SIZE:
+            texts = END_PATTERN_COMPILE.split(self.history + self.socket.recv(TCP_BUFF_SIZE))
             msg.extend(self.reciver(_) for _ in texts[:-1] if _)
-            if not texts[-1] or sum(map(len, msg)) >= DISK_BUFF_SIZE:
-                self.history = texts[-1]
+            self.history = texts[-1]
+            if len(self.history) == 0:
                 break
-            text = texts[-1] + self.socket.recv(TCP_BUFF_SIZE)
         return b"".join(msg)

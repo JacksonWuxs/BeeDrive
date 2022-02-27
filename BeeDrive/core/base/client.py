@@ -80,6 +80,7 @@ class BaseClient(BaseWorker):
 
         # makesure the request is confirmed
         try:
+            self.socket.settimeout(3.0)
             rspn = self.socket.recv(1024)
             if rspn.startswith(b"ERROR"):
                 callback(rspn.decode(), "error")
@@ -91,6 +92,8 @@ class BaseClient(BaseWorker):
                 self.peer = None
         except Exception as e:
             self.peer = None
+        finally:
+            self.socket.settimeout(None)
 
     def run(self, *args, **kwrds):
         self.stage = STAGE_PRE

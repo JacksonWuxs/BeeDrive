@@ -7,7 +7,7 @@ import os
 
 from .utils import build_connect, disconnect, read_until, get_uuid, clean_path
 from .logger import callback
-from .constant import TCP_BUFF_SIZE, END_PATTERN, RETRY_WAIT
+from .constant import TCP_BUFF_SIZE, END_PATTERN, END_PATTERN_COMPILE, RETRY_WAIT
 
 
 
@@ -43,11 +43,10 @@ class BaseProxyNode(threading.Thread):
 
     def read_buff(self, sock):      
         try:
-            history = self.histories[sock]
             message = sock.recv(TCP_BUFF_SIZE)
             if len(message) == 0:
                 raise ConnectionResetError
-            texts = (history + message).split(END_PATTERN)
+            texts = END_PATTERN_COMPILE.split(self.histories[sock] + message)
             self.histories[sock] = texts[-1]
             for element in texts[:-1]:
                 yield element + END_PATTERN
@@ -57,8 +56,6 @@ class BaseProxyNode(threading.Thread):
             self.remove_connect(sock)
         except OSError:
             self.remove_connect(sock)
-        except socket.timeout:
-            pass
 
     def clear_pool(self):
         for sock in list(self.routes):
@@ -88,11 +85,14 @@ class BaseProxyNode(threading.Thread):
                     try:
                         self.handle_request(sock)
                     except Exception as e:
+                        callback("Uncounter Error: %s" % e, "error")
+                        for row in trackback.format_exc().split("\n"):
+                            callback(row, "error")  
                         if sock != self.node:
                             self.remove_connect(sock)
-        except Exception as e:
+        except:
             callback("Proxy will relaunch in short!", "error")
-            for row in trackback.format_exc().split("\n"):
+            for row in traceback.format_exc().split("\n"):
                 callback(row, "error")            
 
     def stop(self):
@@ -101,7 +101,6 @@ class BaseProxyNode(threading.Thread):
             disconnect(self.node)
 
     def _register(self, nickname, client, protocol):
-        client.settimeout(0.02)
         self.routes[nickname] = client
         self.routes[client] = nickname
         self.connects[client] = protocol
@@ -135,6 +134,9 @@ class HostProxy(BaseProxyNode):
                 
         elif request.startswith(b'Regist'):
             nickname = request.split(b" ", 1)[1]
+            if nickname in self.routes:
+                if self.routes[nickname].getsockname() == addr:
+                    self.remove_connect(self.routes[nickname])
             if nickname not in self.routes:
                 client.sendall(b'TRUE')
                 self._register(nickname, client, 0)
@@ -166,11 +168,13 @@ class HostProxy(BaseProxyNode):
                     data = data[:-len(END_PATTERN)]
                 self.routes[target].sendall(data)
         else:
+            # only handle post request
             tgt, pattern = self.connects[sock]
             info = sock.recv(TCP_BUFF_SIZE)
             if len(info) == 0:
-                raise ConnectionResetError
-            self.routes[tgt].sendall(pattern % info)
+                self.remove_connect(sock)
+            else:
+                self.routes[tgt].sendall(pattern % info)
 
     def handle_http(self, request, addr, src):
         method, target, protocol = request.split(b" ")
@@ -222,10 +226,10 @@ class LocalRelay(BaseProxyNode):
                 self.node = route
                 self.routes[self.master] = route
                 self.histories[route] = b""
-                callback("Registed at Proxy %s:%d with nickname %s:%d" % (route.getpeername()[0],
-                                                                          route.getpeername()[1],
-                                                                          self.nickname[0],
-                                                                          self.nickname[1]))
+                callback("Registed at %s:%d with nickname %s:%d" % (route.getpeername()[0],
+                                                                    route.getpeername()[1],
+                                                                    self.nickname[0],
+                                                                    self.nickname[1]))
 
     def run(self):
         while not self.killed:
@@ -252,7 +256,8 @@ class LocalRelay(BaseProxyNode):
             route = self.routes[self.master]
             head = self.routes[sock] + b"$"
             for data in self.read_buff(sock):
-                route.sendall(head + data)
+                route.sendall(head)
+                route.sendall(data)
 
 
 

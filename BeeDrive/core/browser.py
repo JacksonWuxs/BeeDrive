@@ -45,7 +45,7 @@ class HTTPWaiter(BaseWaiter):
                     elif self.task == "post":
                         self.response(self.do_post())
                 except Exception as e:
-                    print(e)
+                    callback("Encounter error: %s" % e, "error")
                 finally:
                     time.sleep(3.)
                     self.socket.close()
@@ -160,7 +160,7 @@ class HTTPWaiter(BaseWaiter):
                     while rest_len > 0:
                         line = END_PATTERN_COMPILE.sub(b"", fd.readline())
                         rest_len -= len(line)
-                        if boundary in line and line.endswith(b"--\r\n"):
+                        if boundary in line:
                             files += 1
                             break
                         fw.write(line)
@@ -223,11 +223,11 @@ class HTTPWaiter(BaseWaiter):
     def check_cookie(self):
         token_path = os.path.join(COOKIE_DIR, self.user)
         if not os.path.exists(token_path):
-            return INDEX_PAGE % ("Cookie is expired!", LOGIN)
+            return INDEX_PAGE % ("Cookie is expired!", LOGIN % self.redirect)
         info = pickle.load(open(token_path, "rb"))
         if time.time() > info["deadline"]:
             os.remove(token_path)
-            return INDEX_PAGE % ("Cookie is expired!", LOGIN)
+            return INDEX_PAGE % ("Cookie is expired!", LOGIN % self.redirect)
         self.user, self.token = info["user"], info["token"]
         return True
 
