@@ -2,8 +2,8 @@ import sys
 import os
 import pickle
 
-from .core.utils import clean_path
-from .core.logger import callback
+from .lib.utils import clean_path
+from .lib.logger import callback
 
 
 def init_config_path(service=None):

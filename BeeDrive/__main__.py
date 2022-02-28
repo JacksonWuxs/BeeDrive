@@ -4,11 +4,12 @@ import pickle
 import sys
 
 
-from . import cloud, proxy, client, __version__
+from . import cloud, proxy, client, __version__, __date__
+from .lib.logger import callback
 
 
 def error(msg):
-    print("Error: %s" % msg)
+    callback(msg, "error")
     sys.exit()
 
 
@@ -59,9 +60,11 @@ def parse_params():
 def main():
     args, config = parse_params()
     if args.version is None:
-        print("BeeDrive-%s" % __version__)
+        callback("BeeDrive-%s (%s) at %s" % (__version__,
+                                             __date__,
+                                             os.path.dirname(os.path.abspath(__file__))))
         sys.exit()
-        
+    
     if args.mode == "app":
         try:
             import PySimpleGUI

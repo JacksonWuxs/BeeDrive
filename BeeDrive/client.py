@@ -3,9 +3,9 @@ import getpass
 import os
 import sys
 
-from .core.Client import ClientManager
-from .core.constant import NewTask, Stop, Done
-from .core.utils import analysis_ip, resource_path
+from .lib.Client import ClientManager
+from .lib.constant import NewTask, Stop, Done
+from .lib.utils import analysis_ip, resource_path
 from .configures import save_config, load_config
 
 

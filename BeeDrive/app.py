@@ -6,7 +6,7 @@ sys.path.append("..")
 import PySimpleGUI as sg
 
 from BeeDrive import client,cloud
-from BeeDrive.core.utils import resource_path
+from BeeDrive.lib.utils import resource_path
 
     
 def welcome_page():

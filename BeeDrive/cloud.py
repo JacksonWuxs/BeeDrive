@@ -6,9 +6,9 @@ import socket
 
 from multiprocessing import cpu_count
 
-from .core.Server import LocalServer
-from .core.Proxy import LocalRelay
-from .core.utils import analysis_ip, resource_path, trust_sleep, get_uuid
+from .lib.Server import LocalServer
+from .lib.Proxy import LocalRelay
+from .lib.utils import analysis_ip, resource_path, trust_sleep, get_uuid
 from .configures import save_config, load_config
 
 

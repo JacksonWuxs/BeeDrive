@@ -9,7 +9,7 @@ Desc: Main file of BeeDrive Packages.
 """
 
 from . import cloud, client, proxy
-from .core.constant import VERSION, DATE
+from .lib.constant import VERSION, DATE
 
 
 __name__ = "BeeDrive"

@@ -1,4 +1,4 @@
-from .core.Proxy import HostProxy
+from .lib.Proxy import HostProxy
 
 
 def proxy_forever(port, max_workers):
