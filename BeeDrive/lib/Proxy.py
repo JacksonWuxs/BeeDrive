@@ -221,15 +221,18 @@ class LocalRelay(BaseProxyNode):
     def build_server(self):
         route = build_connect(*self.master)
         if not isinstance(route, str):
-            route.sendall(("Regist %s:%s\n" % self.nickname).encode())
-            if route.recv(128) == b"TRUE":
-                self.node = route
-                self.routes[self.master] = route
-                self.histories[route] = b""
-                callback("Registed at %s:%d with nickname %s:%d" % (route.getpeername()[0],
-                                                                    route.getpeername()[1],
-                                                                    self.nickname[0],
-                                                                    self.nickname[1]))
+            try:
+                route.sendall(("Regist %s:%s\n" % self.nickname).encode())
+                if route.recv(128) == b"TRUE":
+                    self.node = route
+                    self.routes[self.master] = route
+                    self.histories[route] = b""
+                    callback("Registed at %s:%d with nickname %s:%d" % (route.getpeername()[0],
+                                                                        route.getpeername()[1],
+                                                                        self.nickname[0],
+                                                                        self.nickname[1]))
+            except Exception as e:
+                pass
 
     def run(self):
         while not self.killed:
