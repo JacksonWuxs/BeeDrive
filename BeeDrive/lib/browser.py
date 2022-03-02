@@ -7,7 +7,7 @@ import shutil
 
 from .core import BaseWaiter
 from .constant import TCP_BUFF_SIZE, END_PATTERN_COMPILE
-from .utils import get_uuid, clean_path
+from .utils import get_uuid, clean_path, safety_sleep
 from .logger import callback
 
 
@@ -44,8 +44,15 @@ class HTTPWaiter(BaseWaiter):
                             self.response(self.do_get())
                     elif self.task == "post":
                         self.response(self.do_post())
+                    elif self.task == "newdir":
+                        self.response(self.do_newdir())
+
+                except RuntimeError as e:
+                    callback(str(e))
+                        
                 except Exception as e:
                     callback("Encounter error: %s" % e, "error")
+                    
                 finally:
                     time.sleep(3.)
                     self.socket.close()
@@ -108,13 +115,10 @@ class HTTPWaiter(BaseWaiter):
 
     def do_get(self):
         rslt = self.check_cookie()
-        if isinstance(rslt, str):
-            return rslt
-        self.passwd, query = self.userinfo[self.user], self.passwd
-        query = query.replace("%20", " ")
-
-        target = clean_path(os.path.join(self.roots[0], query))
+        query = os.path.join(self.pwd, self.target.replace("%20", " "))
+        target = self.check_valid_access(query)
         if os.path.isdir(target):
+            callback("User=%s visits dirname: %s" % (self.user, target))
             page_content = self.render_list_dir(query)
             return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
         try:
@@ -127,9 +131,7 @@ class HTTPWaiter(BaseWaiter):
 
     def do_post(self):
         rslt = self.check_cookie()
-        if isinstance(rslt, str):
-            return rslt
-        self.passwd, root = self.userinfo[self.user], self.passwd
+        
         fd = self.socket.makefile("rb", -1)
         headers = self.parse_headers(fd)
         boundary = headers[b"content-type"].split(b"=")[1]
@@ -140,12 +142,10 @@ class HTTPWaiter(BaseWaiter):
         while not line.endswith(b"--\r\n"):
             line = fd.readline()
             rest_len -= len(line)
-            line = line.strip().replace(b":", b"").replace(b";", b"")
-            fname = line.split(b" ")[-1].split(b"=")[-1][1:-1]
+            fname = line.strip().split(b";")[-1].split(b"=")[-1][1:-1].decode("utf8")
             if len(fname) == 0:
                 break
-            fname = fname.decode("utf8")
-            fpath = clean_path(os.path.join(self.roots[0], root, fname))
+            fpath = self.check_valid_access(os.path.join(self.pwd, fname))
             ffold = os.path.dirname(fpath)
             if not os.path.exists(ffold):
                 os.makedirs(ffold)
@@ -166,18 +166,33 @@ class HTTPWaiter(BaseWaiter):
                         fw.write(line)
             except IOError:
                 break
-        page_content = self.render_list_dir(root)
+        page_content = self.render_list_dir(self.pwd)
         callback("Totally uploaded %d files by %s" % (files, self.user))
-        return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
+        return INDEX_PAGE % ("Hi %s, upload %d files success!" % (self.user, files), page_content)
 
+    def do_newdir(self):
+        rslt = self.check_cookie()
+        query = self.target.replace("+", " ").replace("%2B", "+")
+        folder = self.check_valid_access(os.path.join(self.pwd, query))
+        os.makedirs(folder, exist_ok=True)
+        callback("User=%s create new folder=%s" % (self.user, folder))
+        content = self.render_list_dir(self.pwd)
+        return INDEX_PAGE % ("Hi %s, create new folder success!" % self.user, content)
 
     def render_list_dir(self, root):
-        root = root.replace("\\", "/")
+        root = self.check_valid_access(root).replace(self.roots[0], "")
+        if ord(root[0]) == 47:
+            root = root[1:]
+        cookie = "%s?cookie=%s&root=%s" % (self.redirect, self.token, root)
         content = "<h3>Visiting: /%s</h3>" % root
+        content += '<form method="get" action="%s">' % self.redirect
+        content += '<input type="hidden" name="cookie" value="%s">' % self.token
+        content += '<input type="hidden" name="root" value="%s">' % root
+        content += '<input ref="input" type="text" name="newdirname">'
+        content += '<input type="submit" value="New Dir"></form>'
+
         content += "<h3>Upload</h3>"
-        content += '<form method="post" enctype="multipart/form-data" action="%s?cookie=%s&upload=%s">' % (self.redirect,
-                                                                                                           self.token,
-                                                                                                           root)
+        content += '<form method="post" enctype="multipart/form-data" action="%s&upload=%s">' % (cookie, root)
         content += '<input ref="input" multiple="multiple" name="file[]" type="file"/>'
         content += '<input type="submit" value="Upload"/></form>'
         content += "<br>"
@@ -187,8 +202,7 @@ class HTTPWaiter(BaseWaiter):
         if root != self.user:
             father_root = root[:-1] if root.endswith("/") else root
             father_root = os.path.dirname(father_root)
-            content += '<li><a href="%s?cookie=%s&file=%s">../</a>' % (self.redirect, self.token, father_root)
-
+            content += '<li><a href="%s&file=../">../</a>' % (cookie, )
         dirs, files = [], []
         dir_path = clean_path(os.path.join(self.roots[0], root))
         if not os.path.exists(dir_path):
@@ -206,7 +220,7 @@ class HTTPWaiter(BaseWaiter):
             link = clean_path(os.path.join(dir_path, fname)).replace(self.roots[0], "")
             if ord(link[0]) == 47:
                 link = link[1:]
-            content += '<li><a href="%s?cookie=%s&file=%s">%s</a>' % (self.redirect, self.token, link, fname)
+            content += '<li><a href="%s&file=%s">%s</a>' % (cookie, fname, fname)
         content += "</ul>"
         return content
 
@@ -221,15 +235,29 @@ class HTTPWaiter(BaseWaiter):
         return headers
 
     def check_cookie(self):
-        token_path = os.path.join(COOKIE_DIR, self.user)
+        token_path = clean_path(os.path.join(COOKIE_DIR, self.cookie))
         if not os.path.exists(token_path):
-            return INDEX_PAGE % ("Cookie is expired!", LOGIN % self.redirect)
+            return self.response(INDEX_PAGE % ("Cookie is expired!", LOGIN % self.redirect))
+                                       
         info = pickle.load(open(token_path, "rb"))
         if time.time() > info["deadline"]:
             os.remove(token_path)
-            return INDEX_PAGE % ("Cookie is expired!", LOGIN % self.redirect)
+            return self.response(INDEX_PAGE % ("Cookie is expired!", LOGIN % self.redirect))
         self.user, self.token = info["user"], info["token"]
+        self.pwd = self.pwd.replace("\\", "/").replace("%2F", "/").replace("%2B", "/").replace("%20", " ").replace("+", " ")
+        self.check_valid_access(self.pwd)
         return True
+
+    def check_valid_access(self, workdir):
+        valid_path = clean_path(os.path.join(self.roots[0], workdir))
+        if not valid_path.startswith(clean_path(os.path.join(self.roots[0], self.user))):
+            cookie = os.path.join(COOKIE_DIR, self.cookie)
+            if os.path.exists(cookie):
+                os.remove(cookie)
+            safety_sleep()
+            self.response(INDEX_PAGE % ("Invalid access!", LOGIN % self.redirect))
+            raise RuntimeError("User=%s is rejected to access %s!" % (self.user, valid_path))
+        return valid_path
 
     def clean_local_cookie(self):
         for cookie in os.listdir(COOKIE_DIR):
@@ -237,3 +265,4 @@ class HTTPWaiter(BaseWaiter):
             cookie = pickle.load(open(cookie_path, "rb"))
             if time.time() > cookie["deadline"]:
                 os.remove(cookie_path)
+    

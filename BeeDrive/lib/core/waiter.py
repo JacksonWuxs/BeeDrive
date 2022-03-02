@@ -6,15 +6,16 @@ import random
 
 from .worker import BaseWorker
 from .idcard import IDCard
-from ..utils import disconnect, clean_path, get_uuid
+from ..utils import disconnect, clean_path, get_uuid, safety_sleep
 from ..constant import TCP_BUFF_SIZE, END_PATTERN
 from ..encrypt import SUPPORT_AES, AESCoder
 from ..logger import callback
 
 
 LOGIN = re.compile("/\?user=(.*)&passwd=(.*)")
-DOWNLOAD = re.compile("/\?cookie=(.*)&file=(.*)")
-UPLOAD = re.compile("/\?cookie=(.*)&upload=(.*)")
+DOWNLOAD = re.compile("/\?cookie=(.*)&root=(.*)&file=(.*)")
+UPLOAD = re.compile("/\?cookie=(.*)&root=(.*)&upload=(.*)")
+NEWDIR = re.compile("/\?cookie=(.*)&root=(.*)&newdirname=(.*)")
 
         
 class BaseWaiter(BaseWorker):
@@ -31,7 +32,7 @@ class BaseWaiter(BaseWorker):
 
     def __enter__(self):
         self.authorize_connect()
-        if self.user is not None:
+        if self.task is not None:
             self.build_socket()
             self.verify_connect()
             if self.peer:
@@ -44,27 +45,31 @@ class BaseWaiter(BaseWorker):
                 tokens = self.token.split("/", 2)
                 self.redirect = "/" + tokens[1] + "/"
                 self.token = "/" + tokens[2]
+
+            self.user, self.passwd, self.peer, self.task = "", "", "HTTP", None
             if self.token == "/":
-                self.user, self.passwd = "", ""
-                self.task, self.peer = "index", "HTTP"
-                return
+                self.task = "index"
             
             login_token =  LOGIN.findall(self.token)
             if login_token:
                 self.user, self.passwd = login_token[0]
-                self.task, self.peer = "login", "HTTP"
-                return 
-
+                self.task = "login"
+            
             download_token = DOWNLOAD.findall(self.token)
             if download_token:
-                self.user, self.passwd = download_token[0]
-                self.task, self.peer = "get", "HTTP"
+                self.cookie, self.pwd, self.target = download_token[0]
+                self.task = "get"
 
             upload_token = UPLOAD.findall(self.token)
             if upload_token:
-                self.user, self.passwd = upload_token[0]
-                self.task, self.peer = "post", "HTTP"
-        
+                self.cookie, self.pwd, self.target = upload_token[0]
+                self.task = "post"
+
+            newdir_token = NEWDIR.findall(self.token)
+            if newdir_token:
+                self.cookie, self.pwd, self.target = newdir_token[0]
+                self.task = "newdir"
+                
         elif self.proto.startswith("BEE"):
             if self.token not in self.userinfo:
                 return self.fail_disconnect(b"User name is incorrect.")
@@ -110,13 +115,10 @@ class BaseWaiter(BaseWorker):
         self.peer = card
         return card
 
-    def fail_disconnect(self, msg, wait=None):
+    def fail_disconnect(self, msg):
         if not isinstance(msg, bytes):
             msg = msg.encode("utf8")
-        if wait is None:
-            # random time to prevent attack
-            wait = random.randint(1, 5)
-        time.sleep(wait)
+        safety_sleep()
         callback("Failed connection: %s" % msg.decode("utf8"))
         self.socket.sendall(b"ERROR: %s%s" % (msg, END_PATTERN))
         time.sleep(3.0)

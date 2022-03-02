@@ -1,5 +1,6 @@
 import time
 import socket
+import random
 from uuid import getnode, uuid1
 from os import path, listdir
 
@@ -23,6 +24,10 @@ def trust_sleep(time_to_sleep, longest_sleep=604800):
         except KeyboardInterrupt:
             break
     return time.time() - stop
+
+
+def safety_sleep():
+    time.sleep(random.randint(1, 10))
 
 
 def resource_path(relative_path=""):
