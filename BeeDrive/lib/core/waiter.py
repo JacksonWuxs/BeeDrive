@@ -13,7 +13,7 @@ from ..logger import callback
 
 
 LOGIN = re.compile("/\?user=(.*)&passwd=(.*)")
-DOWNLOAD = re.compile("/\?cookie=(.*)&root=(.*)&file=(.*)")
+DOWNLOAD = re.compile('/\?cookie=(.*)&root=(.*)&file=b%27(.*)%27')
 UPLOAD = re.compile("/\?cookie=(.*)&root=(.*)&upload=(.*)")
 NEWDIR = re.compile("/\?cookie=(.*)&root=(.*)&newdirname=(.*)")
 
@@ -31,58 +31,52 @@ class BaseWaiter(BaseWorker):
         self.peer = None
 
     def __enter__(self):
-        self.authorize_connect()
-        if self.task is not None:
-            self.build_socket()
-            self.verify_connect()
-            if self.peer:
-                self.active()
-
-    def authorize_connect(self):
         if self.proto.startswith("HTTP"):
-            self.redirect = "/"
-            if self.proto.endswith("PROXY"):
-                tokens = self.token.split("/", 2)
-                self.redirect = "/" + tokens[1] + "/"
-                self.token = "/" + tokens[2]
-
-            self.user, self.passwd, self.peer, self.task = "", "", "HTTP", None
-            if self.token == "/":
-                self.task = "index"
-            
-            login_token =  LOGIN.findall(self.token)
-            if login_token:
-                self.user, self.passwd = login_token[0]
-                self.task = "login"
-            
-            download_token = DOWNLOAD.findall(self.token)
-            if download_token:
-                self.cookie, self.pwd, self.target = download_token[0]
-                self.task = "get"
-
-            upload_token = UPLOAD.findall(self.token)
-            if upload_token:
-                self.cookie, self.pwd, self.target = upload_token[0]
-                self.task = "post"
-
-            newdir_token = NEWDIR.findall(self.token)
-            if newdir_token:
-                self.cookie, self.pwd, self.target = newdir_token[0]
-                self.task = "newdir"
-                
+            self.connect_http()
         elif self.proto.startswith("BEE"):
-            if self.token not in self.userinfo:
-                return self.fail_disconnect(b"User name is incorrect.")
-            self.user, self.passwd = self.token, self.userinfo[self.token]
-            
+            self.connect_bee()
         else:
-            return self.fail_disconnect(b"Unknow protocol.")
+            self.fail_disconnect(b"Unknow protocol: %s" % self.proto)
+        if self.peer:
+            self.active()
 
-    def verify_connect(self):
+    def connect_http(self):
+        self.redirect = "/"
+        if self.proto.endswith("PROXY"):
+            tokens = self.token.split("/", 2)
+            self.redirect = "/" + tokens[1] + "/"
+            self.token = "/" + tokens[2]
+
+        self.user, self.passwd, self.peer, self.task = "", "", "HTTP", None
+        if self.token == "/":
+            self.task = "index"
+        
+        login_token =  LOGIN.findall(self.token)
+        if login_token:
+            self.user, self.passwd = login_token[0]
+            self.task = "login"
+        
+        download_token = DOWNLOAD.findall(self.token)
+        if download_token:
+            self.cookie, self.pwd, self.target = download_token[0]
+            self.task = "get"
+
+        upload_token = UPLOAD.findall(self.token)
+        if upload_token:
+            self.cookie, self.pwd, self.target = upload_token[0]
+            self.task = "post"
+
+        newdir_token = NEWDIR.findall(self.token)
+        if newdir_token:
+            self.cookie, self.pwd, self.target = newdir_token[0]
+            self.task = "newdir"
+        return self.build_pipeline("", False)
+
+    def connect_bee(self):
         """verify connection is a valid BEE-protocol connection"""
-        if not self.proto.startswith("BEE"):
-            return self.build_pipeline("", False)
-
+        if self.token not in self.userinfo:
+            return self.fail_disconnect(b"User name is incorrect.")
+        self.user, self.passwd = self.token, self.userinfo[self.token]
         try:
             # trying to recive information
             head = pickle.loads(self.socket.recv(TCP_BUFF_SIZE))
@@ -113,6 +107,7 @@ class BaseWaiter(BaseWorker):
         self.build_pipeline(self.passwd, peer["encrypt"])
         self.send(pickle.dumps(self.info.info))
         self.peer = card
+        self.build_socket()
         return card
 
     def fail_disconnect(self, msg):

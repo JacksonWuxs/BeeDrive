@@ -115,23 +115,25 @@ class HTTPWaiter(BaseWaiter):
 
     def do_get(self):
         rslt = self.check_cookie()
-        query = os.path.join(self.pwd, self.target.replace("%20", " "))
+        target = self.target.replace("%20", " ")
+        print(type(target), target)
+        target = target.encode("utf8")
+        query = os.path.join(self.pwd, self.target)
         target = self.check_valid_access(query)
         if os.path.isdir(target):
             callback("User=%s visits dirname: %s" % (self.user, target))
             page_content = self.render_list_dir(query)
             return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
-        try:
+        if True:
             f = open(target, "rb")
             callback("User=%s download file: %s" % (self.user, target))
             return f
-        except OSError:
-            page_content = "<h3>Sorry, cloud has no authorization to access the target file</h3>"
-            return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
+##        except OSError:
+##            page_content = "<h3>Sorry, cloud has no authorization to access the target file</h3>"
+##            return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
 
     def do_post(self):
         rslt = self.check_cookie()
-        
         fd = self.socket.makefile("rb", -1)
         headers = self.parse_headers(fd)
         boundary = headers[b"content-type"].split(b"=")[1]
@@ -220,7 +222,7 @@ class HTTPWaiter(BaseWaiter):
             link = clean_path(os.path.join(dir_path, fname)).replace(self.roots[0], "")
             if ord(link[0]) == 47:
                 link = link[1:]
-            content += '<li><a href="%s&file=%s">%s</a>' % (cookie, fname, fname)
+            content += '<li><a href="%s&file=%s">%s</a>' % (cookie, fname.encode("utf8"), fname)
         content += "</ul>"
         return content
 
