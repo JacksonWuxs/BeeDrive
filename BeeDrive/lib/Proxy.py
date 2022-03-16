@@ -161,20 +161,25 @@ class HostProxy(BaseProxyNode):
         if sock == self.node:
             return self.accept()
 
-        elif self.connects[sock] == 0:
-            for data in self.read_buff(sock):
-                target, data = data.split(b"$", 1)
-                if target.startswith(b"(HTTP)"):
-                    data = data[:-len(END_PATTERN)]
-                self.routes[target].sendall(data)
-        else:
-            # only handle post request
-            tgt, pattern = self.connects[sock]
-            info = sock.recv(TCP_BUFF_SIZE)
-            if len(info) == 0:
-                self.remove_connect(sock)
+        try:
+            if self.connects[sock] == 0:
+                for data in self.read_buff(sock):
+                    target, data = data.split(b"$", 1)
+                    if target.startswith(b"(HTTP)"):
+                        data = data[:-len(END_PATTERN)]
+                    self.routes[target].sendall(data)
             else:
-                self.routes[tgt].sendall(pattern % info)
+                # only handle post request
+                tgt, pattern = self.connects[sock]
+                info = sock.recv(TCP_BUFF_SIZE)
+                if len(info) == 0:
+                    self.remove_connect(sock)
+                else:
+                    self.routes[tgt].sendall(pattern % info)
+        except KeyError:
+            # by some accident, the target was disappeared
+            if self.routes[sock] not in self.registed:
+                self.remove_connect(sock)
 
     def handle_http(self, request, addr, src):
         method, target, protocol = request.split(b" ")
