@@ -116,7 +116,6 @@ class HTTPWaiter(BaseWaiter):
     def do_get(self):
         rslt = self.check_cookie()
         target = self.target.replace("%20", " ")
-        print(type(target), target)
         target = target.encode("utf8")
         query = os.path.join(self.pwd, self.target)
         target = self.check_valid_access(query)
@@ -124,13 +123,13 @@ class HTTPWaiter(BaseWaiter):
             callback("User=%s visits dirname: %s" % (self.user, target))
             page_content = self.render_list_dir(query)
             return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
-        if True:
+        try:
             f = open(target, "rb")
             callback("User=%s download file: %s" % (self.user, target))
             return f
-##        except OSError:
-##            page_content = "<h3>Sorry, cloud has no authorization to access the target file</h3>"
-##            return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
+        except OSError:
+            page_content = "<h3>Sorry, cloud has no authorization to access the target file</h3>"
+            return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
 
     def do_post(self):
         rslt = self.check_cookie()
@@ -190,7 +189,7 @@ class HTTPWaiter(BaseWaiter):
         content += '<form method="get" action="%s">' % self.redirect
         content += '<input type="hidden" name="cookie" value="%s">' % self.token
         content += '<input type="hidden" name="root" value="%s">' % root
-        content += '<input ref="input" type="text" name="newdirname">'
+        content += '<input ref="input" type="text" name="newdirname">&nbsp&nbsp'
         content += '<input type="submit" value="New Dir"></form>'
 
         content += "<h3>Upload</h3>"

@@ -84,6 +84,8 @@ class BaseProxyNode(threading.Thread):
                 for sock in select.select(self.listen_sock, [], [])[0]:
                     try:
                         self.handle_request(sock)
+                    except ConnectionResetError:
+                        self.remove_connect(sock)
                     except Exception as e:
                         callback("Uncounter Error: %s" % e, "error")
                         for row in traceback.format_exc().split("\n"):
@@ -182,6 +184,8 @@ class HostProxy(BaseProxyNode):
                 self.remove_connect(sock)
 
     def handle_http(self, request, addr, src):
+        if request.count(b" ") != 2:
+            return
         method, target, protocol = request.split(b" ")
         target = target.split(b"/")[1:]
         if target[0] == b"":
@@ -203,6 +207,7 @@ class HostProxy(BaseProxyNode):
                 self._register(nickname, src, 0)
             if method.lower() == b"post":
                 self._register(nickname, src, (target[0], pattern))
+
 
     def render_index(self, src):
         content = '<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF8"><title>BeeDrive NAT Service</title></head><body><h2>Welcome to BeeDrive NAT Service!</h2><hr><h3>Choose a registed server:<h3><ul>'
