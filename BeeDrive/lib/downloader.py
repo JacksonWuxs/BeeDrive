@@ -3,7 +3,7 @@ import pickle
 import time
 
 from .utils import clean_path
-from .core import BaseClient, BaseWaiter, FileAccessLocker
+from .core import BaseClient, BaseWaiter, FileLocker
 from .encrypt import file_md5
 from .constant import STAGE_DONE, STAGE_FAIL, TCP_BUFF_SIZE, DISK_BUFF_SIZE
 from .logger import callback, processbar, flush
@@ -15,7 +15,6 @@ class DownloadClient(BaseClient):
         self.root = clean_path(root)
         self.fold = os.path.dirname(file)
         self.file = file
-        self.percent = 0.0
         self.start()
         
     def prepare(self):
@@ -87,7 +86,6 @@ class DownloadClient(BaseClient):
 class DownloadWaiter(BaseWaiter):
     def __init__(self, infos, proto, token, root, task, conn):
         BaseWaiter.__init__(self, infos, proto, token, task, conn, root)
-        self.percent = 0.0
         self.msg = "Preparing to send file"
         self.start()
 
@@ -134,7 +132,7 @@ class DownloadWaiter(BaseWaiter):
             self.percent = bkpnt / local_size
 
             task = u"Download:%s" % os.path.split(fname)[1]
-            with FileAccessLocker(local_file, "rb") as f:
+            with FileLocker(local_file, "rb") as f:
                 begin_time = last_time = time.time()
                 f.seek(bkpnt)
                 if self.recv().lower() != b"ready":

@@ -57,7 +57,7 @@ class ClientManager(BaseManager):
     def wait_until_empty(self, done, total):
         if len(self.pool) == 1:
             worker = list(self.pool.values())[0]
-            while worker.isAlive():
+            while worker.is_alive():
                 time.sleep(0.1)
                 self.send(worker.msg)
         else:

@@ -114,6 +114,7 @@ def cmd_get_config(choose):
 
     if choose == "default" and len(config) > 0:
         return config
+    
     fast_setup = input("Do you need a fast setup? [y|n]:").lower() == "y"
     print("\nBeeDrive Cloud Setup")
     config["users"] = parse_users(input("1. Authorized users and passwords [user:passwd;user:passwd;...]:"))

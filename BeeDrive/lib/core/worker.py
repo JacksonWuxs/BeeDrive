@@ -14,6 +14,7 @@ from ..constant import END_PATTERN_COMPILE, END_PATTERN, TCP_BUFF_SIZE, DISK_BUF
 class BaseWorker(threading.Thread):
     def __init__(self, sock, encrypt):
         threading.Thread.__init__(self)
+        self.percent = 0.0
         self.socket = sock             # socket instance
         self.info = IDCard.create(encrypt)
         self.use_proxy = False         # we try to connect the target directly

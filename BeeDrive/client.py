@@ -10,18 +10,37 @@ from .configures import save_config, load_config
 
 
 GUI_CONFIG = dict(size=(7, 1), justification='right', text_color="black", background_color="white")
+CLIENT_CONFIGS = {"UserName:": "user",
+                  "Password:": "passwd",
+                  "Cloud IP:": "cloud",
+                  "Proxy IP:": "proxy",
+                  "Encrypt:": "encrypt",
+                  "Save Path:": "root"}
+
 
 
 def cmd_check_config():
     config = load_config("client")
     print("Client Default Configures:")
-    for name, key in [("UserName:", "user"),
-                      ("Password:", "passwd"),
-                      ("Cloud IP:", "cloud"),
-                      ("Proxy IP:", "proxy"),
-                      ("Encrypt:", "encrypt"),
-                      ("Save Path:", "root")]:
+    for name, key in CLIENT_CONFIGS.items():
         print(name, config.get(key, ""))
+    sys.exit()
+
+
+def cmd_update_config():
+    config = load_config("client")
+    print("Client current Configures:")
+    for name, key in CLIENT_CONFIGS.items():
+        print(name, config.get(key, ""))
+    while True:
+        keyword = input("Type the keyword you want to update: ")
+        assert keyword in CLIENT_CONFIGS, "Keyword %s doesn't exist" % keyword
+        value = input("Keyword %s will be updated with new value: " % keyword)
+        config[CLIENT_CONFIGS[keyword]] = value
+        if input("Do you want to update other keywords? [y|n]: ").lower() != "y":
+            break
+    save_config("client", **config)
+    print("Client config has been updated.")
     sys.exit()
 
 
@@ -35,7 +54,8 @@ def cmd_get_config(choose):
     config = load_config("client")
     if choose == "default" and len(config) > 0:
         return config
-    fast_setup = input("Do you need a fast setup? [y|n]:").lower() == "y"
+    
+    fast_setup = input("Do you need a fast setup? [y|n]: ").lower() == "y"
     print("\nBeeDrive Client Setup")
     config["user"] = input("1. Username to login the Cloud: ")
     config["passwd"] = getpass.getpass("2. Password to login the Cloud: ")

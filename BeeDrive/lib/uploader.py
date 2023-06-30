@@ -3,7 +3,7 @@ import pickle
 import time
 
 from .utils import clean_path
-from .core import BaseClient, BaseWaiter, FileAccessLocker
+from .core import BaseClient, BaseWaiter, FileLocker
 from .encrypt import file_md5
 from .constant import DISK_BUFF_SIZE, STAGE_DONE, STAGE_FAIL
 from .logger import callback, processbar, flush
@@ -14,7 +14,6 @@ class UploadClient(BaseClient):
         BaseClient.__init__(self, user, psd, cloud, 'upload', retry, encrypt, proxy)
         self.fold = fold
         self.file = file
-        self.percent = 0.0
         self.start()
         
     def prepare(self):
@@ -38,7 +37,7 @@ class UploadClient(BaseClient):
         begin_time = last_time = time.time()
         if self.recv().lower() != b"ready":
             raise ConnectionAbortedError
-        with FileAccessLocker(self.file, "rb", DISK_BUFF_SIZE) as f:
+        with FileLocker(self.file, "rb", DISK_BUFF_SIZE) as f:
             f.seek(bkpnt)
             while self.is_conn:
                 row = f.read(DISK_BUFF_SIZE)
@@ -62,7 +61,6 @@ class UploadClient(BaseClient):
 class UploadWaiter(BaseWaiter):
     def __init__(self, infos, proto, token, roots, task, conn):
         BaseWaiter.__init__(self, infos, proto, token, task, conn, roots)
-        self.percent = 0.0
         self.msg = "Preparing to recive file"
         self.start()
 
@@ -96,7 +94,7 @@ class UploadWaiter(BaseWaiter):
 
             # Now begin to recive file
             task = u"Upload:%s" % fname
-            locker = FileAccessLocker(fpath, mode, DISK_BUFF_SIZE)
+            locker = FileLocker(fpath, mode, DISK_BUFF_SIZE)
             with locker as f:
                 begin_time = last_time = time.time()
                 self.send(b"ready")
@@ -127,7 +125,7 @@ class UploadWaiter(BaseWaiter):
                                                               self.user,
                                                               header["fold"],
                                                               header["fname"]))
-                        with FileAccessLocker(backup_file, "wb", -1) as fout:
+                        with FileLocker(backup_file, "wb", -1) as fout:
                             f.seek(0)
                             while True:
                                 msg = f.read(DISK_BUFF_SIZE)

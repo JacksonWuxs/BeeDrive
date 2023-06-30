@@ -119,39 +119,3 @@ class BaseWaiter(BaseWorker):
         time.sleep(3.0)
         disconnect(self.socket)
 
-
-PROCESS_ID = get_uuid()
-class FileAccessLocker:
-    def __init__(self, fpath, mode="rb", buffering=-1, encoding=None):
-        self.fpath = fpath
-        self.ffold = os.path.dirname(fpath)
-        self.flock = "." + os.path.split(fpath)[-1] + PROCESS_ID + ".blck"
-        self.flock = clean_path(os.path.join(self.ffold, self.flock))
-        self.file = None
-        self.mode = mode
-        self.encode = encoding
-        self.buffer = buffering
-
-    def __enter__(self):
-        if not os.path.exists(self.ffold):
-            os.makedirs(self.ffold, exist_ok=True)
-        while os.path.exists(self.flock):
-            time.sleep(0.1)
-        open(self.flock, "wb").close()
-        self.file = open(self.fpath, self.mode, self.buffer, self.encode)
-        return self.file
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.file.close()
-        os.remove(self.flock)
-        if exc_type:
-            raise exc_type(exc_val)
-
-    def reopen(self, mode="rb", buffering=-1, encoding=None):
-        assert os.path.exists(self.flock), "please require the lock for the file at first"
-        assert self.file is not None
-        self.file.close()
-        self.mode, self.buffer, self.encode = mode, buffering, encoding
-        self.file = open(self.fpath, self.mode, self.buffer, self.encode)
-        return self.file
-        

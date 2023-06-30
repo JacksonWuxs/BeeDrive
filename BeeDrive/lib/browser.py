@@ -5,7 +5,7 @@ import itertools
 import socketserver
 import shutil
 
-from .core import BaseWaiter
+from .core import BaseWaiter, FileLocker
 from .constant import TCP_BUFF_SIZE, END_PATTERN_COMPILE
 from .utils import get_uuid, clean_path, safety_sleep
 from .logger import callback
@@ -25,7 +25,6 @@ INDEX_PAGE = open(INDEX_PATH, "r", encoding="utf8").read()
 class HTTPWaiter(BaseWaiter):
     def __init__(self, infos, proto, token, roots, task, conn):
         BaseWaiter.__init__(self, infos, proto, token, task, conn, roots)
-        self.percent = 0.0
         self.msg = "Preparing to send file"
         self.start()
 
@@ -78,8 +77,8 @@ class HTTPWaiter(BaseWaiter):
                 for i in range(len(content) // TCP_BUFF_SIZE + 1):
                     seg = content[i * TCP_BUFF_SIZE: (i+1) * TCP_BUFF_SIZE]
                     self.send(seg)
-            else:
-                for line in content:
+            elif isinstance(content, FileLocker):
+                for line in content.open():
                     self.send(line)
                 content.close()
         else:
@@ -88,7 +87,7 @@ class HTTPWaiter(BaseWaiter):
             else:
                 try:
                     writer = socketserver._SocketWriter(self.socket)
-                    shutil.copyfileobj(content, writer)
+                    shutil.copyfileobj(content.open(), writer)
                 except BrokenPipeError:
                     # user may stop the downloading
                     pass
@@ -124,7 +123,7 @@ class HTTPWaiter(BaseWaiter):
             page_content = self.render_list_dir(query)
             return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
         try:
-            f = open(target, "rb")
+            f = FileLocker(target, "rb")
             callback("User=%s download file: %s" % (self.user, target))
             return f
         except OSError:
@@ -156,7 +155,7 @@ class HTTPWaiter(BaseWaiter):
             rest_len -= len(line)
             
             try:
-                with open(fpath, "wb") as fw:
+                with FileLocker(fpath, "wb") as fw:
                     callback("User=%s upload file: %s" % (self.user, fpath))
                     while rest_len > 0:
                         line = END_PATTERN_COMPILE.sub(b"", fd.readline())
@@ -195,8 +194,7 @@ class HTTPWaiter(BaseWaiter):
         content += "<h3>Upload</h3>"
         content += '<form method="post" enctype="multipart/form-data" action="%s&upload=%s">' % (cookie, root)
         content += '<input ref="input" multiple="multiple" name="file[]" type="file"/>'
-        content += '<input type="submit" value="Upload"/></form>'
-        content += "<br>"
+        content += '<input type="submit" value="Upload"/></form><br>'
         
         content += "<h3>Download</h3>"
         content += "<ul>"
@@ -222,8 +220,7 @@ class HTTPWaiter(BaseWaiter):
             if ord(link[0]) == 47:
                 link = link[1:]
             content += '<li><a href="%s&file=%s">%s</a>' % (cookie, fname.encode("utf8"), fname)
-        content += "</ul>"
-        return content
+        return content + "</ul>"
 
     def parse_headers(self, fd):
         headers = {}
