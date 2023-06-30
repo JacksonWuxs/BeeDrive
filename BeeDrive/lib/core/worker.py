@@ -4,8 +4,8 @@ import socket
 import traceback
 
 from .idcard import IDCard
+from .utils import clean_coder, base_coder, disconnect
 from ..encrypt import AESCoder, MD5Coder, SUPPORT_AES
-from ..utils import clean_coder, base_coder, disconnect
 from ..logger import callback
 from ..constant import END_PATTERN_COMPILE, END_PATTERN, TCP_BUFF_SIZE, DISK_BUFF_SIZE
 
@@ -14,6 +14,7 @@ from ..constant import END_PATTERN_COMPILE, END_PATTERN, TCP_BUFF_SIZE, DISK_BUF
 class BaseWorker(threading.Thread):
     def __init__(self, sock, encrypt):
         threading.Thread.__init__(self)
+        self.daemon = True
         self.percent = 0.0
         self.socket = sock             # socket instance
         self.info = IDCard.create(encrypt)

@@ -6,6 +6,7 @@ from .constant import Done
 from .utils import list_files, clean_path
 from .uploader import UploadClient
 from .downloader import DownloadClient
+from .commander import CMDClient
 
 
 class ClientManager(BaseManager):

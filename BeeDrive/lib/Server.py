@@ -5,11 +5,13 @@ from .constant import IsFull, NewTask, Stop
 from .utils import get_uuid, clean_path
 from .uploader import UploadWaiter
 from .downloader import DownloadWaiter
+from .commander import CMDWaiter
 from .browser import HTTPWaiter
 from .logger import callback, flush
 
 
 WAITERS = {"upload": UploadWaiter, "download": DownloadWaiter,
+           "commander": CMDWaiter, 
            "get": HTTPWaiter, "post": HTTPWaiter}
 
 

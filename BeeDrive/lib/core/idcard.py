@@ -1,5 +1,6 @@
+
+from .utils import get_uuid, get_mac
 from ..encrypt import md5_encode
-from ..utils import get_uuid, get_mac
 
 
 class IDCard:

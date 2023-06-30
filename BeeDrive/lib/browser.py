@@ -6,8 +6,8 @@ import socketserver
 import shutil
 
 from .core import BaseWaiter, FileLocker
-from .constant import TCP_BUFF_SIZE, END_PATTERN_COMPILE
 from .utils import get_uuid, clean_path, safety_sleep
+from .constant import TCP_BUFF_SIZE, END_PATTERN_COMPILE
 from .logger import callback
 
 

@@ -6,7 +6,7 @@ import random
 
 from .worker import BaseWorker
 from .idcard import IDCard
-from ..utils import disconnect, clean_path, get_uuid, safety_sleep
+from .utils import disconnect, clean_path, get_uuid, safety_sleep
 from ..constant import TCP_BUFF_SIZE, END_PATTERN
 from ..encrypt import SUPPORT_AES, AESCoder
 from ..logger import callback
@@ -85,7 +85,7 @@ class BaseWaiter(BaseWorker):
                 assert key in head
         except ConnectionResetError:
             return self.fail_disconnect(b"Unknow protocol.")
-
+        
         peer = head["info"]
         if not head["text"]:
             if not SUPPORT_AES:
@@ -103,6 +103,7 @@ class BaseWaiter(BaseWorker):
         card = IDCard(peer["uuid"], peer["mac"], peer["encrypt"])
         if card.code != peer["code"]:
             return self.fail_disconnect(b"The message has been tampered with.")
+
         self.info = IDCard(self.info.uuid, self.info.mac, peer["encrypt"])
         self.build_pipeline(self.passwd, peer["encrypt"])
         self.send(pickle.dumps(self.info.info))

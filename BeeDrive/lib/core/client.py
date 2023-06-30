@@ -4,7 +4,7 @@ import socket
 
 from .idcard import IDCard
 from .worker import BaseWorker
-from ..utils import build_connect, disconnect
+from .utils import build_connect, disconnect
 from ..logger import callback, flush
 from ..encrypt import SUPPORT_AES, AESCoder
 from ..constant import END_PATTERN, TCP_BUFF_SIZE, VERSION

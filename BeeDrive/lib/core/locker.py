@@ -2,7 +2,7 @@
 import os
 import time
 
-from ..utils import clean_path
+from .utils import clean_path
 
 if os.name == 'posix':
     import fcntl

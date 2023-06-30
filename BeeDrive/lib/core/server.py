@@ -1,5 +1,5 @@
 from .worker import BaseWorker
-from ..utils import disconnect, read_until
+from .utils import disconnect, read_until
 
 
 class BaseServer(BaseWorker):
@@ -28,7 +28,7 @@ class BaseServer(BaseWorker):
             check = line.strip().decode("utf8").split(" ")
             assert len(check) == 3
             check[0] = check[0].lower()
-            assert check[0] in {"download", "upload", "get", "post", "exit"}
+            assert check[0] in {"download", "upload", "commander", "get", "post", "exit"}
             check[2] = check[2].upper()
             assert check[2].startswith("HTTP") or check[2].startswith("BEE")
             return check
