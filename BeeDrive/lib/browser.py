@@ -61,8 +61,8 @@ class HTTPWaiter(BaseWaiter):
         if isinstance(content, str):
             content = content.encode("utf-8")
         ctype = "text/html; charset=utf-8" if isinstance(content, bytes) else "application/octet-stream"
-        clength = len(content) if isinstance(content, bytes) else str(os.fstat(content.fileno())[6])
-        cdispos = "inline" if isinstance(content, bytes) else 'attachment; filename="%s"' % os.path.split(content.name)[-1]
+        clength = len(content) if isinstance(content, bytes) else str(os.fstat(content.file.fileno())[6])
+        cdispos = "inline" if isinstance(content, bytes) else 'attachment; filename="%s"' % os.path.split(content.path)[-1]
         header = ["HTTP/1.1 200 OK",
                   "Connection: Close",
                   "Content-Type: %s" % ctype,
@@ -120,10 +120,11 @@ class HTTPWaiter(BaseWaiter):
         target = self.check_valid_access(query)
         if os.path.isdir(target):
             callback("User=%s visits dirname: %s" % (self.user, target))
-            page_content = self.render_list_dir(query)
+            page_content = self.render_list_dir(target)
             return INDEX_PAGE % ("Hi %s, welcome back!" % self.user, page_content)
         try:
             f = FileLocker(target, "rb")
+            f.open()
             callback("User=%s download file: %s" % (self.user, target))
             return f
         except OSError:
@@ -201,7 +202,7 @@ class HTTPWaiter(BaseWaiter):
         if root != self.user:
             father_root = root[:-1] if root.endswith("/") else root
             father_root = os.path.dirname(father_root)
-            content += '<li><a href="%s&file=../">../</a>' % (cookie, )
+            content += '<li><a href="%s&file=b%%27../%%27">../</a>' % (cookie, )
         dirs, files = [], []
         dir_path = clean_path(os.path.join(self.roots[0], root))
         if not os.path.exists(dir_path):
