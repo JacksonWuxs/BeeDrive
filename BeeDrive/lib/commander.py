@@ -2,6 +2,7 @@ import queue
 import time
 import os
 import shutil
+import glob
 
 from .core import BaseClient, BaseWaiter
 from .constant import STAGE_DONE, STAGE_FAIL, TCP_BUFF_SIZE, DISK_BUFF_SIZE
@@ -106,7 +107,7 @@ class CMDWaiter(BaseWaiter):
                     self.do_cpmv(root, pwd, cmd)
 
                 elif cmd.startswith("find "):
-                    pass
+                    self.do_find(root, pwd, cmd)
 
                 elif cmd.startswith("share "):
                     pass
@@ -118,11 +119,14 @@ class CMDWaiter(BaseWaiter):
                     self.do_cpmv(root, pwd, cmd)
 
                 elif cmd.startswith("rm "):
-                    pwd = self.do_cdrm(root, pwd, cmd)
+                    self.do_cdrm(root, pwd, cmd)
+
+                else:
+                    self.send("Error: unsupported command %s" % cmd.split(" ")[0])
                     
                 self.send("[:DONE:]")
                 time.sleep(0.1)
-                self.send(pwd.replace(root, "~"))
+                self.send(pwd.replace(root, "~", 1))
 
     def do_mkdir(self, root, pwd, cmd):
         arg = clean_path(pwd + "/" + cmd[6:])
@@ -175,7 +179,9 @@ class CMDWaiter(BaseWaiter):
             op(l, r)
         else:
             for src_dir, dirs, files in os.walk(l):
-                dst_dir = src_dir.replace(l, r, 1)
+                src_dir = clean_path(src_dir)
+                dst_dir = clean_path(src_dir.replace(l, r, 1) +\
+                                     '/' + os.path.split(src_dir)[-1])
                 os.makedirs(dst_dir, exist_ok=True)
                 for file_ in files:
                     op(os.path.join(src_dir, file_),
@@ -183,9 +189,21 @@ class CMDWaiter(BaseWaiter):
             if cmd[:2] == "mv":
                 shutil.rmtree(l)
         return l, r
+
+    def do_find(self, root, pwd, cmd):
+        args = cmd[5:]
+        if len(args) == 0:
+            self.send("Error: find command requests one parameter.")
+            return
+        files = glob.glob(clean_path(pwd + '/' + args), recursive=True)
+        info = []
+        for file in files:
+            file = clean_path(file)
+            if file.startswith(pwd) and file.startswith(root):
+                info.append("  " + file.replace(root, "~", 1))
+        self.send("\n".join(info))
             
     def do_ls(self, root, pwd, cmd):
-
         def hum_convert(value):
             units = ["B", "KB", "MB", "GB", "TB", "PB"]
             size = 1024.0
@@ -203,7 +221,6 @@ class CMDWaiter(BaseWaiter):
         elif not os.path.isdir(args):
             info.append("Error: The path you provided is not a valid folder!")
         else:
-            files = os.listdir(args)
             for file in os.listdir(args):
                 stat = os.stat(clean_path(args + '/' + file))
                 info.append(time.ctime(stat.st_mtime) + '  ')

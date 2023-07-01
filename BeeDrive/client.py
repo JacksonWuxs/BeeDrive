@@ -3,9 +3,9 @@ import getpass
 import os
 import sys
 
-from .lib.Client import ClientManager
+from .lib.Client import ClientManager, CMDClient
 from .lib.constant import NewTask, Stop, Done
-from .lib.utils import analysis_ip, resource_path
+from .lib.utils import analysis_ip, resource_path, clean_path
 from .configures import save_config, load_config
 
 
@@ -15,45 +15,25 @@ CLIENT_CONFIGS = {"UserName:": "user",
                   "Cloud IP:": "cloud",
                   "Proxy IP:": "proxy",
                   "Encrypt:": "encrypt",
-                  "Save Path:": "root"}
+                  "Download Path:": "root",
+                  "#Transferring:": "pool",
+                  "#Retry:": "retry"
+                  }
 
 
-
-def cmd_check_config():
+def cmd_manage_config(choose):
     config = load_config("client")
-    print("Client Default Configures:")
-    for name, key in CLIENT_CONFIGS.items():
-        print(name, config.get(key, ""))
-    sys.exit()
-
-
-def cmd_update_config():
-    config = load_config("client")
-    print("Client current Configures:")
-    for name, key in CLIENT_CONFIGS.items():
-        print(name, config.get(key, ""))
-    while True:
-        keyword = input("Type the keyword you want to update: ")
-        assert keyword in CLIENT_CONFIGS, "Keyword %s doesn't exist" % keyword
-        value = input("Keyword %s will be updated with new value: " % keyword)
-        config[CLIENT_CONFIGS[keyword]] = value
-        if input("Do you want to update other keywords? [y|n]: ").lower() != "y":
-            break
-    save_config("client", **config)
-    print("Client config has been updated.")
-    sys.exit()
-
-
-def cmd_get_config(choose):
-    if isinstance(choose, dict) > 0:
-        for key in ["user", "pwd", "cloud", "proxy", "encrypt"]:
-            if key not in choose:
-                raise ValueError("Custom config file isn't valid for client service.")
+    if not choose and len(config) > 0:
         return config
 
-    config = load_config("client")
-    if choose == "default" and len(config) > 0:
-        return config
+    if len(config) > 0:
+        print("BeeDrive Client Configure")
+        print('-' * 20)
+        for name, key in CLIENT_CONFIGS.items():
+            print(name, config.get(key, ""))
+        print('-' * 20)
+        if choose == "check":
+            sys.exit()
     
     fast_setup = input("Do you need a fast setup? [y|n]: ").lower() == "y"
     print("\nBeeDrive Client Setup")
@@ -65,7 +45,7 @@ def cmd_get_config(choose):
         config["root"] = config.get("root", "./")
         config["encrypt"], config["pool"], config["retry"] = True, 2, 3
     else:
-        config["root"] = input("4. Path to store files: ")
+        config["root"] = input("4. Path to download files: ")
         config["proxy"] = analysis_ip(input("5. NAT service(s) addresses [ip:port;ip;port;...]: "))
         config["encrypt"] = input("6. Encrypto your data [y|n]:").lower() == "y"
         config['pool'] = max(int(input("7. Maximum number of parallel transferring files:")), 1)
@@ -173,7 +153,6 @@ def download_gui():
 
 
 def upload_cmd(source, config):
-    config = cmd_get_config(config)
     config["source"] = source
     manager = ClientManager.get_controller(name=config["user"], pool_size=config["pool"])
     manager.join_do(NewTask, task="upload", **config)
@@ -181,11 +160,14 @@ def upload_cmd(source, config):
 
 
 def download_cmd(source, root, config):
-    config = cmd_get_config(config)
     config["source"] = source
     if root:
         config["root"] = root
     manager = ClientManager.get_controller(name=config["user"], pool_size=config["pool"])
     manager.join_do(NewTask, task="download", **config)
     manager.join_do(Stop)
-    
+
+def command_cmd(config):
+    cmd = CMDClient(**config)
+    cmd.command()
+    cmd.join()

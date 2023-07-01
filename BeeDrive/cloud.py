@@ -8,9 +8,19 @@ from multiprocessing import cpu_count
 
 from .lib.Server import LocalServer
 from .lib.Proxy import LocalRelay
-from .lib.utils import analysis_ip, resource_path, trust_sleep, get_uuid
+from .lib.utils import analysis_ip, resource_path, trust_sleep, get_uuid, clean_path
 from .configures import save_config, load_config
 
+
+CLOUD_CONFIGS = {"Users Info:": "users",
+                 "Server Port:": "sport",
+                 "Server Path:": "spath",
+                 "Durations:": "times",
+                 "#Managers:": "manager",
+                 "#Workers:": "worker",
+                 "Proxy IP:": "proxy",
+                 "Nickname:": "pname",
+                 "Relay Port:": "rport"}
 
 def parse_users(string):
     if len(string) == 0:
@@ -90,36 +100,25 @@ def cloud_gui():
     window.close()
 
 
-def cmd_get_config(choose):
-    if isinstance(choose, dict):
-        for key in ["users", "sport", "spath", "times", "proxy", "pname", "rport"]:
-            if key not in choose:
-                raise ValueError("Loaded custom configure doesn't support Cloud service.")
-        return choose
-
+def cmd_manage_config(choose):
     config = load_config("cloud")
-    if choose == "check":
-        print("Cloud Default Configures:")
-        for name, key in [("Users Info:", "users"),
-                          ("Server Port:", "sport"),
-                          ("Server Path:", "spath"),
-                          ("Durations:", "times"),
-                          ("#Managers:", "manager"),
-                          ("#Workers:", "worker"),
-                          ("Proxy IP:", "proxy"),
-                          ("Nickname:", "pname"),
-                          ("Relay Port:", "rport")]:
-            print(name, config.get(key, ""))
-        sys.exit()
-
-    if choose == "default" and len(config) > 0:
+    if not choose and len(config) > 0:
         return config
+
+    if len(config) > 0:
+        print("BeeDrive Cloud Configure")
+        print('-' * 20)
+        for name, key in CLOUD_CONFIGS.items():
+            print(name, config.get(key, ""))
+        print('-' * 20)
+        if choose == "check":
+            sys.exit()
     
     fast_setup = input("Do you need a fast setup? [y|n]:").lower() == "y"
     print("\nBeeDrive Cloud Setup")
     config["users"] = parse_users(input("1. Authorized users and passwords [user:passwd;user:passwd;...]:"))
     config["sport"] = int(input("2. Port for cloud service [1024-65535]:"))
-    config["spath"] = input("3. Path(s) to store files: ").split(";")
+    config["spath"] = [clean_path(_) for _ in input("3. Path(s) to store files: ").split(";")]
     if fast_setup:
         config["times"], config["manager"], config["worker"] = 2 ** 29, cpu_count(), 8
         config["proxy"] = [("beedrive.kitgram.cn", 80)]
@@ -152,7 +151,6 @@ def cmd_get_config(choose):
 
 
 def cloud_cmd(temp_port, temp_time, config):
-    config = cmd_get_config(config)
     if temp_port:
         config["sport"] = int(temp_port)
     if temp_time:

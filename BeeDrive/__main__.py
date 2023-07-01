@@ -13,25 +13,12 @@ def error(msg):
     sys.exit()
 
 
-def parse_config(param):
-    if param.lower() in ("check", "default", "reset"):
-        return param.lower()
-    if not param.endswith(".eff"):
-        error("custom config should be a file ends with .eff")
-    if not os.path.exists(param):
-        error("cannot find your custom config at: %s" % param)
-    try:
-        return pickle.load(open(args.custom_config, "rb"))
-    except Exception:
-        error("cannot open your custom config: %s" % param)
-
-
 def parse_params():
     parser = argparse.ArgumentParser(description="BeeDrive Command Line Launcher!")
     parser.add_argument("service",
                         help="whice service you need?",
                         nargs="?",
-                        choices=["cloud", "upload", "download", "proxy"],
+                        choices=["cloud", "upload", "download", "proxy", "command"],
                         type=str)
 
     parser.add_argument("arg1", help="the first additional argument (optional)",
@@ -48,17 +35,17 @@ def parse_params():
 
     parser.add_argument("-config",
                         help="command to control configure files",
-                        default="default",
+                        choices=["", "check", "reset"],
+                        default="",
                         type=str)
 
     parser.add_argument("-version", nargs="?", default="",
                         help="check the version of current BeeDrive service")
-    args = parser.parse_args()
-    return args, parse_config(args.config)
+    return parser.parse_args()
 
 
 def main():
-    args, config = parse_params()
+    args = parse_params()
     if args.version is None:
         callback("BeeDrive-%s (%s) at %s" % (__version__,
                                              __date__,
@@ -77,18 +64,25 @@ def main():
         if not args.arg2:
             args.arg2 = 16
         proxy.proxy_forever(args.arg1, args.arg2)
+        sys.exit()
 
+    
+    if args.service == "cloud":
+        config = cloud.cmd_manage_config(args.config)
+    else:
+        config = client.cmd_manage_config(args.config)
+
+    if args.config != "":
+        sys.exit()
+
+    elif args.service == "command":
+        client.command_cmd(config)
+        
     elif args.service == "cloud":
         if args.mode == "app":
             cloud.cloud_gui()
         else:
             cloud.cloud_cmd(args.arg1, args.arg2, config)
-
-    elif args.service in ("upload", "download") and config == "check":
-        client.cmd_check_config()
-
-    elif args.service in ("upload", "download") and config == "update":
-        client.cmd_update_config()
 
     elif args.service == "upload":
         if args.mode == "app":
