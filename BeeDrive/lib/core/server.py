@@ -1,15 +1,17 @@
+import os
+import sqlite3
+
 from .worker import BaseWorker
 from .utils import disconnect, read_until
+from .database import UserDatabase
 
 
 class BaseServer(BaseWorker):
-    def __init__(self, users, port):
+    def __init__(self, database, port):
+        assert isinstance(database, UserDatabase)
         self.host = "0.0.0.0"
         self.port = port
-        self.users = dict(users)
-        assert all(map(lambda x: isinstance(x, str), self.users.values())), "Users' password must be str"
-        assert len(self.users) == len(users), "Users name are duplicated."
-        assert all(map(lambda x: u" " not in x, self.users)), "User name not allowed ' ' blank inside."
+        self.users = database
         BaseWorker.__init__(self, None, False)
         
     def build_server(self, max_connect):

@@ -40,8 +40,8 @@ class WorkerManager(BaseManager):
 
 
 class LocalServer(BaseServer):
-    def __init__(self, users, port, save_path, max_manager, max_worker):
-        BaseServer.__init__(self, users, port)
+    def __init__(self, database, port, save_path, max_manager, max_worker):
+        BaseServer.__init__(self, database, port)
         self.target = ("0.0.0.0", port)
         self.max_manager = max_manager
         self.max_worker = max_worker

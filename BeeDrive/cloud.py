@@ -9,10 +9,11 @@ from multiprocessing import cpu_count
 from .lib.Server import LocalServer
 from .lib.Proxy import LocalRelay
 from .lib.utils import analysis_ip, resource_path, trust_sleep, get_uuid, clean_path
+from .lib.core.database import UserDatabase
 from .configures import save_config, load_config
 
 
-CLOUD_CONFIGS = {"Users Info:": "users",
+CLOUD_CONFIGS = {"Database:": "database",
                  "Server Port:": "sport",
                  "Server Path:": "spath",
                  "Durations:": "times",
@@ -29,11 +30,11 @@ def parse_users(string):
 
 
 class ConfigLauncher:
-    def __init__(self, config):
+    def __init__(self, config, database):
         self.config = config
         self.hosts = [LocalRelay(proxy, config["rport"], config["sport"], config["pname"], config["manager"] * config["worker"]) \
                            for proxy in config["proxy"]]
-        self.server = LocalServer(users=config["users"], port=config["sport"],
+        self.server = LocalServer(database=database, port=config["sport"],
                                   save_path=config["spath"], max_manager=config["manager"],
                                   max_worker=config["worker"])
 
@@ -54,7 +55,8 @@ class ConfigLauncher:
 def cloud_gui():
     import PySimpleGUI as sg
     config = load_config("cloud")
-    users = ";".join(_[0] + ":" + _[1] for _ in config.get("users", []))
+    database = UserDatabase(config["database"])
+    users = ";".join(database.list_users())
     proxy = ";".join(_[0] + ":" + str(_[1]) for _ in config.get("proxy", [("beedrive.kitgram.cn", 80)]))
     GUI_SETTING = dict(size=(11, 1), justification='right', text_color="black", background_color="white")
     layout = [[sg.Text("Users", **GUI_SETTING), sg.InputText(users, size=(33, 1))],
@@ -80,7 +82,6 @@ def cloud_gui():
 
         if evt == "Start" and not RUNNING:
             servers = ConfigLauncher(save_config("cloud",
-                                                users=parse_users(rspn[0]),
                                                 sport=int(rspn[1]),
                                                 spath=rspn["tgt"],
                                                 times=3153600,
@@ -102,12 +103,14 @@ def cloud_gui():
 
 def cmd_manage_config(choose):
     config = load_config("cloud")
+    database = UserDatabase(config["database"])
     if not choose and len(config) > 0:
-        return config
+        return config, database
 
     if len(config) > 0:
         print("BeeDrive Cloud Configure")
         print('-' * 20)
+        print("Users:", database.list_users())
         for name, key in CLOUD_CONFIGS.items():
             print(name, config.get(key, ""))
         print('-' * 20)
@@ -116,12 +119,20 @@ def cmd_manage_config(choose):
     
     fast_setup = input("Do you need a fast setup? [y|n]:").lower() == "y"
     print("\nBeeDrive Cloud Setup")
-    config["users"] = parse_users(input("1. Authorized users and passwords [user:passwd;user:passwd;...]:"))
-    config["sport"] = int(input("2. Port for cloud service [1024-65535]:"))
-    config["spath"] = [clean_path(_) for _ in input("3. Path(s) to store files: ").split(";")]
+    database.clear()
+    username = input("1. Setup admin username:")
+    password = input("2. Setup admin password:")
+    echo = database.create_user(username, password, 1)
+    assert echo == "Success", echo
+    while input("Do you want to add more users? [Y|N]").upper() == "Y":
+        name = input("New username:")
+        pswd = input("New password:")
+        print(database.create_user(username, password, 1))
+    config["sport"] = int(input("3. Port for cloud service [1024-65535]:"))
+    config["spath"] = [clean_path(_) for _ in input("4. Path(s) to store files: ").split(";")]
     if fast_setup:
         config["times"], config["manager"], config["worker"] = 2 ** 29, cpu_count(), 8
-        config["proxy"] = [("beedrive.kitgram.cn", 80)]
+        config["proxy"] = [("beedrive-cn.kitgram.cn", 80), ("beedrive-us.kitgram.cn", 80)]
         config["pname"] = os.environ.get("USERNAME", os.environ.get("LOGNAME", get_uuid()))
         for port in range(int(config["sport"]) + 1, 65535):
             try:
@@ -136,21 +147,21 @@ def cmd_manage_config(choose):
             raise ValueError("Autosetup port for NAT service is failed")
                 
     else:
-        config["times"] = float(input("4. Cloud serving duration [hours]:")) * 3600
-        config["manager"] = max(int(input("5. Maximum number of available CPU [1-%d]:" % cpu_count())), 1)
-        config["worker"] = max(int(input("6. How many tasks can each CPU accept at most? ")), 1)
+        config["times"] = float(input("5. Cloud serving duration [hours]:")) * 3600
+        config["manager"] = max(int(input("6. Maximum number of available CPU [1-%d]:" % cpu_count())), 1)
+        config["worker"] = max(int(input("7. How many tasks can each CPU accept at most? ")), 1)
         if input("\nDo you need a Free NAT Service? [y|n]: ").lower() == "y":
-            print("BeeDrive Official Free NAT at beedrive.kitgram.cn:80")
-            config["proxy"] = input("7. NAT service(s) address [ip:port;ip;port;...]: ")
+            print("BeeDrive Official Free NAT at beedrive-cn.kitgram.cn:80 and beedrive-us.kitgram.cn:80.")
+            config["proxy"] = input("8. NAT service(s) address [ip:port;ip;port;...]: ")
             config["proxy"] = [(addr.split(":")[0], int(addr.split(":")[1])) for addr in config["proxy"].split(";")]
-            config["pname"] = input("8. Nickname on NAT servers: ")
-            config["rport"] = int(input("9. Port for NAT service [1024-65535]: "))
+            config["pname"] = input("9. Nickname on NAT servers: ")
+            config["rport"] = int(input("10. Port for NAT service [1024-65535]: "))
         else:
             config["proxy"] = config["pname"] = config["rport"] = ""
-    return save_config("cloud", **config)
+    return save_config("cloud", **config), database
 
 
-def cloud_cmd(temp_port, temp_time, config):
+def cloud_cmd(temp_port, temp_time, config, database):
     if temp_port:
         config["sport"] = int(temp_port)
     if temp_time:

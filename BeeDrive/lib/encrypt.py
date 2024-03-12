@@ -1,4 +1,6 @@
 import hashlib
+import string
+import random
 
 from .constant import IV, BLOCK_SIZE
 
@@ -20,6 +22,11 @@ except Exception:
 __all__ = ['file_md5', 'AESCoder', 'MD5Coder']
 
 
+CHARS = string.digits + string.punctuation + string.ascii_letters
+def create_salt(size=8):
+    assert isinstance(size, int) and size > 0
+    return random.choices(CHARS, k=size)
+
 
 def file_md5(fpath, breakpoint=None):
     coder = hashlib.md5()
@@ -38,6 +45,14 @@ def file_md5(fpath, breakpoint=None):
 
 def md5_encode(text):
     return hashlib.md5(text).hexdigest()
+
+
+def sha256_encode(text):
+    if isinstance(text, str):
+        text = text.encode("utf8")
+    sha = hashlib.sha256()
+    sha.update(text)
+    return sha.hexdigest()
 
 
 class MD5Coder:
