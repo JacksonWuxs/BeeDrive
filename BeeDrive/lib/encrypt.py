@@ -80,12 +80,13 @@ class AESCoder:
         self.blocksize = BLOCK_SIZE
         if isinstance(passwd, str):
             passwd = passwd.encode("utf8")
-        assert len(passwd) <= 16, "Length of password must be smaller than 16"
-        self.passwd = b" " * (16 - len(passwd)) + passwd
+        assert len(passwd) <= 32, "Length of password must be smaller than 32."
+        passwd = b" " * (32 - len(passwd)) + passwd
+        self.PW, self.IV = passwd[:16], passwd[16:]
 
     def encrypt(self, text):
-        return AES.new(self.passwd, AES.MODE_CBC, IV).encrypt(pad(text, self.blocksize))
+        return AES.new(self.PW, AES.MODE_CBC, self.IV).encrypt(pad(text, self.blocksize))
 
     def decrypt(self, text):
-        return unpad(AES.new(self.passwd, AES.MODE_CBC, IV).decrypt(text), self.blocksize)
+        return unpad(AES.new(self.PW, AES.MODE_CBC, self.IV).decrypt(text), self.blocksize)
 
